@@ -1,0 +1,49 @@
+plugins {
+  id "com.github.ben-manes.versions" version "$versionsVersion"
+  id 'io.spring.dependency-management' version "$springDependencyManagementVersion"
+  id 'org.springframework.boot' version "$springBootVersion"
+}
+
+apply plugin: 'eclipse'
+apply plugin: 'java'
+
+group = 'com.foilen'
+version = System.getenv('VERSION')?:'master-SNAPSHOT'
+ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
+
+repositories {
+  mavenLocal()
+  mavenCentral()
+}
+
+sourceCompatibility = 11
+
+eclipse {
+  classpath {
+    downloadSources = true
+    downloadJavadoc = true
+  }
+}
+
+dependencies {
+  implementation "com.foilen:jl-smalltools:$smalltoolsVersion"
+  implementation "dnsjava:dnsjava:$dnsJavaVersion"
+  implementation "javax.xml.bind:jaxb-api"
+  implementation "com.jcraft:jsch:$jschVersion"
+  implementation "com.foilen:foilen-infra-api:$foilenInfraApiVersion"
+  implementation "com.foilen:foilen-infra-plugin-core:$foilenInfraPluginVersion"
+  implementation "com.foilen:foilen-infra-plugins-core:$foilenInfraPluginsCoreVersion"
+  implementation "org.apache.httpcomponents:httpclient"
+  implementation "org.freemarker:freemarker"
+  implementation "org.jsoup:jsoup:$jsoupVersion"
+  implementation "org.springframework.data:spring-data-jpa"
+  implementation "org.springframework.shell:spring-shell-starter:$springShellVersion"
+  implementation "org.springframework:spring-web"
+  
+  testImplementation "junit:junit"
+  testImplementation "org.springframework.boot:spring-boot-starter-test"
+}
+
+bootJar {
+	classifier = 'boot'
+}
