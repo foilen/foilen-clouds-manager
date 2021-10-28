@@ -26,19 +26,20 @@ eclipse {
 }
 
 dependencies {
+  implementation "com.fasterxml.jackson.core:jackson-databind"
   implementation "com.foilen:jl-smalltools:$smalltoolsVersion"
+  implementation "com.google.guava:guava:$guavaVersion"
   implementation "dnsjava:dnsjava:$dnsJavaVersion"
   implementation "javax.xml.bind:jaxb-api"
   implementation "com.jcraft:jsch:$jschVersion"
-  implementation "com.foilen:foilen-infra-api:$foilenInfraApiVersion"
-  implementation "com.foilen:foilen-infra-plugin-core:$foilenInfraPluginVersion"
-  implementation "com.foilen:foilen-infra-plugins-core:$foilenInfraPluginsCoreVersion"
+  implementation "org.apache.commons:commons-lang3"
   implementation "org.apache.httpcomponents:httpclient"
   implementation "org.freemarker:freemarker"
   implementation "org.jsoup:jsoup:$jsoupVersion"
   implementation "org.springframework.data:spring-data-jpa"
   implementation "org.springframework.shell:spring-shell-starter:$springShellVersion"
   implementation "org.springframework:spring-web"
+  
   
   testImplementation "junit:junit"
   testImplementation "org.springframework.boot:spring-boot-starter-test"
