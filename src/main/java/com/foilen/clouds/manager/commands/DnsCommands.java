@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.shell.standard.ShellComponent;
 import org.springframework.shell.standard.ShellMethod;
 import org.springframework.shell.standard.ShellOption;
@@ -37,7 +38,12 @@ import org.xbill.DNS.SimpleResolver;
 import org.xbill.DNS.TXTRecord;
 import org.xbill.DNS.Type;
 
+import com.foilen.clouds.manager.CliException;
 import com.foilen.clouds.manager.commands.model.RawDnsEntry;
+import com.foilen.clouds.manager.services.CloudService;
+import com.foilen.clouds.manager.services.DisplayService;
+import com.foilen.clouds.manager.services.ResourcesBucketService;
+import com.foilen.clouds.manager.services.model.DomainConfiguration;
 import com.foilen.smalltools.reflection.ReflectionTools;
 import com.foilen.smalltools.tools.AbstractBasics;
 import com.foilen.smalltools.tools.JsonTools;
@@ -46,10 +52,37 @@ import com.google.common.base.Strings;
 @ShellComponent
 public class DnsCommands extends AbstractBasics {
 
+    @Autowired
+    private CloudService cloudService;
+    @Autowired
+    private DisplayService displayService;
+    @Autowired
+    private ResourcesBucketService resourcesBucketService;
+
     private void addSubDomains(Collection<String> hostnames, String hostname, String... subs) {
         for (String sub : subs) {
             hostnames.add(sub + "." + hostname);
         }
+    }
+
+    @ShellMethod("Using the cloud DNS service, list the entries for that domain")
+    public void dnsCloudList( //
+            String hostname //
+    ) {
+
+        System.out.println("\n\n---[" + hostname + "]---");
+        DomainConfiguration domainConfiguration = resourcesBucketService.getAllResourcesBucket().getConfigurationByDomain().get(hostname);
+        if (domainConfiguration == null) {
+            throw new CliException("Unknown domain in the resources bucket");
+        }
+
+        domainConfiguration.getDnsZones().forEach(dnsZone -> {
+            displayService.displayResource(0, dnsZone);
+            List<RawDnsEntry> dnsEntries = cloudService.listDnsEntries(hostname, dnsZone);
+            dnsEntries.stream().sorted().distinct() //
+                    .forEach(it -> System.out.println(JsonTools.compactPrintWithoutNulls(it)));
+        });
+
     }
 
     @ShellMethod("Look the current DNS entries for a hostname with common sub-domains")

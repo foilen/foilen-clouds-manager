@@ -7,12 +7,8 @@
     http://opensource.org/licenses/MIT
 
  */
-package com.foilen.clouds.manager.commands.exec.model;
+package com.foilen.clouds.manager.services.model;
 
-public interface ProgressionHook {
-
-    void begin();
-
-    void done();
+public interface DnsZone extends CloudProviderInfo, IdInfo, NameInfo, RegionInfo {
 
 }

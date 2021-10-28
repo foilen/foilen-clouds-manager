@@ -13,17 +13,20 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.shell.standard.ShellComponent;
 import org.springframework.shell.standard.ShellMethod;
 
-import com.foilen.clouds.manager.services.ContextService;
+import com.foilen.clouds.manager.services.CloudAzureService;
+import com.foilen.smalltools.tools.AbstractBasics;
 
 @ShellComponent
-public class ContextCommands {
+public class DiscoverCommands extends AbstractBasics {
 
     @Autowired
-    private ContextService contextService;
+    private CloudAzureService cloudAzureService;
 
-    @ShellMethod("Use a url as the context")
-    public void contextUseUrl(String url) {
-        contextService.useUrl(url);
+    @ShellMethod("Check all resources available in your Microsoft Azure account")
+    public void discoverAzure( //
+    ) {
+        cloudAzureService.discoverAll();
+
     }
 
 }

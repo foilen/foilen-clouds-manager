@@ -7,12 +7,8 @@
     http://opensource.org/licenses/MIT
 
  */
-package com.foilen.clouds.manager.services;
+package com.foilen.clouds.manager.services.model;
 
-public interface DisplayService {
-
-    void display(String text);
-
-    void displayResource(int indentation, Object resource);
+public interface SecretStore extends CloudProviderInfo, IdInfo, NameInfo {
 
 }

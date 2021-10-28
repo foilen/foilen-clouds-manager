@@ -7,12 +7,10 @@
     http://opensource.org/licenses/MIT
 
  */
-package com.foilen.clouds.manager.services;
+package com.foilen.clouds.manager.services.model;
 
-public interface DisplayService {
+public interface RegionInfo {
 
-    void display(String text);
-
-    void displayResource(int indentation, Object resource);
+    String getRegion();
 
 }

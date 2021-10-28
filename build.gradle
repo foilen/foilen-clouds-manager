@@ -40,6 +40,9 @@ dependencies {
   implementation "org.springframework.shell:spring-shell-starter:$springShellVersion"
   implementation "org.springframework:spring-web"
   
+  // Microsoft Azure
+  implementation "com.azure:azure-identity:1.4.1"
+  implementation "com.azure.resourcemanager:azure-resourcemanager:2.9.0"
   
   testImplementation "junit:junit"
   testImplementation "org.springframework.boot:spring-boot-starter-test"
