@@ -1,0 +1,19 @@
+{
+	"installationId": "aaaaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa",
+	"subscriptions": [
+		{
+			"id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+			"name": "Mine",
+			"state": "Enabled",
+			"user": {
+				"name": "me@example.com",
+				"type": "user"
+			},
+			"isDefault": true,
+			"tenantId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+			"environmentName": "AzureCloud",
+			"homeTenantId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+			"managedByTenants": []
+		}
+	]
+}

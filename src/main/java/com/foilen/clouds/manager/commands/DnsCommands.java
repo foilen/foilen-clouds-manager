@@ -78,7 +78,7 @@ public class DnsCommands extends AbstractBasics {
 
         domainConfiguration.getDnsZones().forEach(dnsZone -> {
             displayService.displayResource(0, dnsZone);
-            List<RawDnsEntry> dnsEntries = cloudService.listDnsEntries(hostname, dnsZone);
+            List<RawDnsEntry> dnsEntries = cloudService.dnsListEntries(dnsZone, hostname);
             dnsEntries.stream().sorted().distinct() //
                     .forEach(it -> System.out.println(JsonTools.compactPrintWithoutNulls(it)));
         });
@@ -112,7 +112,9 @@ public class DnsCommands extends AbstractBasics {
                 "cpanel", "whm", // CPanel
                 "_sip._tls", "_sipfederationtls._tcp", "sip", // SIP
                 "_jabber._tcp", "_ldap._tcp", "_xmpp-client._tcp", "enterpriseenrollment", "enterpriseregistration", "ftp", "login", "lyncdiscover", "lyncdiscoverinternal", "gitlab", "phpmyadmin",
-                "sso", "shop", "unifi", "unms", "webdisk", "webmail" // Common apps
+                "sso", "shop", "unifi", "unms", "webdisk", "webmail", // Common apps
+                "_acme-challenge", // Let's Encrypt
+                "asuid" // Azure
         );
         if (moreSubDomains != null) {
             addSubDomains(hostnames, hostname, moreSubDomains.split(","));

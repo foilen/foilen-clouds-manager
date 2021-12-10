@@ -28,7 +28,9 @@ public class LetsEncryptCommands {
 
     @ShellMethod("Update the Let's Encrypt certificate")
     public void letsEncryptUpdate(//
-            @ShellOption String domain //
+            @ShellOption String domain, //
+            @ShellOption String contactEmail, //
+            @ShellOption(defaultValue = "false") boolean staging //
     ) {
 
         DomainConfiguration configuration = resourcesBucketService.getDomainConfig(domain);
@@ -38,7 +40,7 @@ public class LetsEncryptCommands {
             return;
         }
 
-        letsEncryptService.update(configuration);
+        letsEncryptService.update(configuration, staging, contactEmail);
 
     }
 

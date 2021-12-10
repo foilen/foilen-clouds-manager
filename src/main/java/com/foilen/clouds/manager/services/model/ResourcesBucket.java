@@ -40,8 +40,10 @@ public class ResourcesBucket extends AbstractBasics {
     }
 
     public void addSecretStore(String groupName, SecretStore secretStore) {
-        CollectionsTools.getOrCreateEmptyArrayList(secretStoresByGroup, groupName, SecretStore.class) //
-                .add(secretStore);
+        List<SecretStore> secretStores = CollectionsTools.getOrCreateEmptyArrayList(secretStoresByGroup, groupName, SecretStore.class);
+        if (!secretStores.contains(secretStore)) {
+            secretStores.add(secretStore);
+        }
     }
 
     public SortedMap<String, DomainConfiguration> getConfigurationByDomain() {

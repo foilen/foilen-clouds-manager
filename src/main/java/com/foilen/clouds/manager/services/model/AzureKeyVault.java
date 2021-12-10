@@ -9,6 +9,8 @@
  */
 package com.foilen.clouds.manager.services.model;
 
+import java.util.Objects;
+
 import com.azure.resourcemanager.keyvault.models.Vault;
 
 public class AzureKeyVault extends CommonResource implements SecretStore, AzureResourceGroup, RegionInfo {
@@ -31,6 +33,14 @@ public class AzureKeyVault extends CommonResource implements SecretStore, AzureR
     }
 
     @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof AzureKeyVault) {
+            return Objects.equals(getId(), ((AzureKeyVault) obj).getId());
+        }
+        return false;
+    }
+
+    @Override
     public String getName() {
         return name;
     }
@@ -43,6 +53,11 @@ public class AzureKeyVault extends CommonResource implements SecretStore, AzureR
     @Override
     public String getResourceGroup() {
         return resourceGroup;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getProvider(), getId());
     }
 
     public void setName(String name) {

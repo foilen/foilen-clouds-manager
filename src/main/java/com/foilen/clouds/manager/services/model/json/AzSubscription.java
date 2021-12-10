@@ -16,6 +16,7 @@ public class AzSubscription extends AbstractApiBase {
     private String id;
     private String name;
     private String tenantId;
+    private AzSubscriptionUser user;
 
     public String getId() {
         return id;
@@ -29,6 +30,10 @@ public class AzSubscription extends AbstractApiBase {
         return tenantId;
     }
 
+    public AzSubscriptionUser getUser() {
+        return user;
+    }
+
     public void setId(String id) {
         this.id = id;
     }
@@ -39,6 +44,10 @@ public class AzSubscription extends AbstractApiBase {
 
     public void setTenantId(String tenantId) {
         this.tenantId = tenantId;
+    }
+
+    public void setUser(AzSubscriptionUser user) {
+        this.user = user;
     }
 
 }

@@ -18,11 +18,15 @@ import org.springframework.stereotype.Component;
 import com.foilen.clouds.manager.CliException;
 import com.foilen.clouds.manager.commands.model.RawDnsEntry;
 import com.foilen.clouds.manager.services.model.AzureDnsZone;
+import com.foilen.clouds.manager.services.model.AzureKeyVault;
 import com.foilen.clouds.manager.services.model.AzureResourceGroup;
+import com.foilen.clouds.manager.services.model.AzureWebApp;
 import com.foilen.clouds.manager.services.model.DnsZone;
 import com.foilen.clouds.manager.services.model.DomainConfiguration;
 import com.foilen.clouds.manager.services.model.ResourcesBucket;
 import com.foilen.clouds.manager.services.model.SecretStore;
+import com.foilen.clouds.manager.services.model.WebApp;
+import com.foilen.smalltools.crypt.bouncycastle.cert.RSACertificate;
 import com.foilen.smalltools.tools.AbstractBasics;
 
 @Component
@@ -42,7 +46,70 @@ public class CloudService extends AbstractBasics {
         }
     }
 
-    public SecretStore findSecretStoreOrFail(ResourcesBucket resourcesBucket, DomainConfiguration configuration, String prefixName) {
+    private String azureKeyFullName(String namespace, String name) {
+        return namespace + "--" + name;
+    }
+
+    public List<RawDnsEntry> dnsListEntries(DnsZone dnsZone, String hostname) {
+
+        switch (dnsZone.getProvider()) {
+        case AZURE:
+            return cloudAzureService.dnsListEntries((AzureDnsZone) dnsZone);
+        }
+
+        throw new CliException("Unknown provider");
+    }
+
+    public void dnsSetEntry(DnsZone dnsZone, RawDnsEntry rawDnsEntry) {
+
+        switch (dnsZone.getProvider()) {
+        case AZURE:
+            cloudAzureService.dnsSetEntry((AzureDnsZone) dnsZone, rawDnsEntry);
+            return;
+        }
+
+        throw new CliException("Unknown provider");
+
+    }
+
+    public CloudAzureService getCloudAzureService() {
+        return cloudAzureService;
+    }
+
+    public void pushCertificate(String hostname, WebApp httpsWebApp, RSACertificate caRsaCertificate, RSACertificate rsaCertificate, String pfxPassword) {
+
+        switch (httpsWebApp.getProvider()) {
+        case AZURE:
+            cloudAzureService.webAppServicePushCertificate(hostname, (AzureWebApp) httpsWebApp, caRsaCertificate, rsaCertificate, pfxPassword);
+            return;
+        }
+
+        throw new CliException("Unknown provider");
+    }
+
+    public String secretGetAsText(SecretStore secretStore, String namespace, String name) {
+
+        switch (secretStore.getProvider()) {
+        case AZURE:
+            return cloudAzureService.keyVaultSecretGetAsText((AzureKeyVault) secretStore, azureKeyFullName(namespace, name));
+        }
+
+        throw new CliException("Unknown provider");
+    }
+
+    public void secretSetAsTextOrFail(SecretStore secretStore, String namespace, String name, String value) {
+
+        switch (secretStore.getProvider()) {
+        case AZURE:
+            cloudAzureService.keyVaultSecretSetAsTextOrFail((AzureKeyVault) secretStore, azureKeyFullName(namespace, name), value);
+            return;
+        }
+
+        throw new CliException("Unknown provider");
+
+    }
+
+    public SecretStore secretStoreFindOrFail(ResourcesBucket resourcesBucket, DomainConfiguration configuration, String prefixName) {
 
         logger.info("Find an existing secret store for {} with prefix name {}", configuration.getDomainName(), prefixName);
 
@@ -76,14 +143,8 @@ public class CloudService extends AbstractBasics {
         return secretStore;
     }
 
-    public List<RawDnsEntry> listDnsEntries(String hostname, DnsZone dnsZone) {
-
-        switch (dnsZone.getProvider()) {
-        case AZURE:
-            return cloudAzureService.listDnsEntries((AzureDnsZone) dnsZone);
-        }
-
-        throw new CliException("Unknown provider");
+    public void setCloudAzureService(CloudAzureService cloudAzureService) {
+        this.cloudAzureService = cloudAzureService;
     }
 
 }

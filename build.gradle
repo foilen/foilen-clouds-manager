@@ -36,13 +36,15 @@ dependencies {
   implementation "org.apache.httpcomponents:httpclient"
   implementation "org.freemarker:freemarker"
   implementation "org.jsoup:jsoup:$jsoupVersion"
+  implementation "org.shredzone.acme4j:acme4j-client:$acme4jVersion"
+  implementation "org.shredzone.acme4j:acme4j-utils:$acme4jVersion"
   implementation "org.springframework.data:spring-data-jpa"
   implementation "org.springframework.shell:spring-shell-starter:$springShellVersion"
   implementation "org.springframework:spring-web"
   
   // Microsoft Azure
-  implementation "com.azure:azure-identity:1.4.1"
-  implementation "com.azure.resourcemanager:azure-resourcemanager:2.9.0"
+  implementation "com.azure:azure-identity:1.4.2"
+  implementation "com.azure.resourcemanager:azure-resourcemanager:2.10.0"
   
   testImplementation "junit:junit"
   testImplementation "org.springframework.boot:spring-boot-starter-test"
@@ -50,4 +52,8 @@ dependencies {
 
 bootJar {
 	classifier = 'boot'
+}
+
+test {
+  useJUnit()
 }

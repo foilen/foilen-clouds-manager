@@ -1,0 +1,10 @@
+{
+  "subscriptions" : [ {
+    "id" : "cccccccc-cccc-cccc-cccc-cccccccccccc",
+    "name" : "Mine",
+    "tenantId" : "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    "user" : {
+      "name" : "me@example.com"
+    }
+  } ]
+}
