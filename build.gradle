@@ -43,8 +43,8 @@ dependencies {
   implementation "org.springframework:spring-web"
   
   // Microsoft Azure
-  implementation "com.azure:azure-identity:1.4.2"
-  implementation "com.azure.resourcemanager:azure-resourcemanager:2.10.0"
+  implementation "com.azure:azure-identity:1.5.1"
+  implementation "com.azure.resourcemanager:azure-resourcemanager:2.15.0"
   
   testImplementation "junit:junit"
   testImplementation "org.springframework.boot:spring-boot-starter-test"
