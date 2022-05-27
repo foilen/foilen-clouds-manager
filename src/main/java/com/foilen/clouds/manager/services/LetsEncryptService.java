@@ -9,22 +9,18 @@
  */
 package com.foilen.clouds.manager.services;
 
-import java.net.URI;
-import java.net.URL;
-import java.security.KeyPair;
-import java.security.cert.X509Certificate;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Calendar;
-import java.util.List;
-
-import org.shredzone.acme4j.Account;
-import org.shredzone.acme4j.AccountBuilder;
-import org.shredzone.acme4j.Authorization;
-import org.shredzone.acme4j.Certificate;
-import org.shredzone.acme4j.Order;
-import org.shredzone.acme4j.Session;
-import org.shredzone.acme4j.Status;
+import com.foilen.clouds.manager.CliException;
+import com.foilen.clouds.manager.commands.model.RawDnsEntry;
+import com.foilen.clouds.manager.services.model.DnsZone;
+import com.foilen.clouds.manager.services.model.SecretStore;
+import com.foilen.clouds.manager.services.model.WebApp;
+import com.foilen.smalltools.crypt.bouncycastle.asymmetric.AsymmetricKeys;
+import com.foilen.smalltools.crypt.bouncycastle.asymmetric.RSACrypt;
+import com.foilen.smalltools.crypt.bouncycastle.cert.RSACertificate;
+import com.foilen.smalltools.crypt.bouncycastle.cert.RSATools;
+import com.foilen.smalltools.tools.*;
+import com.google.common.base.Joiner;
+import org.shredzone.acme4j.*;
 import org.shredzone.acme4j.challenge.Challenge;
 import org.shredzone.acme4j.challenge.Dns01Challenge;
 import org.shredzone.acme4j.exception.AcmeException;
@@ -36,23 +32,11 @@ import org.xbill.DNS.Record;
 import org.xbill.DNS.TXTRecord;
 import org.xbill.DNS.Type;
 
-import com.foilen.clouds.manager.CliException;
-import com.foilen.clouds.manager.commands.model.RawDnsEntry;
-import com.foilen.clouds.manager.services.model.DomainConfiguration;
-import com.foilen.clouds.manager.services.model.SecretStore;
-import com.foilen.clouds.manager.services.model.WebApp;
-import com.foilen.smalltools.crypt.bouncycastle.asymmetric.AsymmetricKeys;
-import com.foilen.smalltools.crypt.bouncycastle.asymmetric.RSACrypt;
-import com.foilen.smalltools.crypt.bouncycastle.cert.RSACertificate;
-import com.foilen.smalltools.crypt.bouncycastle.cert.RSATools;
-import com.foilen.smalltools.tools.AbstractBasics;
-import com.foilen.smalltools.tools.CollectionsTools;
-import com.foilen.smalltools.tools.DateTools;
-import com.foilen.smalltools.tools.ResourceTools;
-import com.foilen.smalltools.tools.SecureRandomTools;
-import com.foilen.smalltools.tools.StringTools;
-import com.foilen.smalltools.tools.ThreadTools;
-import com.google.common.base.Joiner;
+import java.net.URI;
+import java.net.URL;
+import java.security.KeyPair;
+import java.security.cert.X509Certificate;
+import java.util.*;
 
 @Component
 public class LetsEncryptService extends AbstractBasics {
@@ -61,8 +45,6 @@ public class LetsEncryptService extends AbstractBasics {
 
     @Autowired
     private CloudService cloudService;
-    @Autowired
-    private ResourcesBucketService resourcesBucketService;
 
     private String getChallengeErrorDetails(Challenge challenge) {
         logger.info("getChallengeErrorDetails: {}", challenge);
@@ -72,17 +54,9 @@ public class LetsEncryptService extends AbstractBasics {
         return "no details";
     }
 
-    public void update(DomainConfiguration configuration, boolean staging, String contactEmail) {
+    public void update(String domainName, DnsZone dnsZone, SecretStore secretStore, Optional<WebApp> httpsWebAppToPushCert, boolean staging, String contactEmail) {
 
-        String domainName = configuration.getDomainName();
         logger.info("Will update certificate for domain {} with staging mode {}", domainName, staging);
-
-        if (configuration.getDnsZones().isEmpty()) {
-            throw new CliException("There is no automated way to manage the DNS Zone");
-        }
-
-        // Find a secret store
-        SecretStore secretStore = cloudService.secretStoreFindOrFail(resourcesBucketService.getAllResourcesBucket(), configuration, "letsenc-");
 
         // Get or create accountKeypairPem from secret store
         logger.info("Get the account keypair from the secret store");
@@ -176,7 +150,7 @@ public class LetsEncryptService extends AbstractBasics {
                         .setType("TXT") //
                         .setTtl(60) //
                         .setDetails(digest);
-                configuration.getDnsZones().forEach(dnsZone -> cloudService.dnsSetEntry(dnsZone, rawDnsEntry));
+                cloudService.dnsSetEntry(dnsZone, rawDnsEntry);
 
                 // Wait
                 Lookup lookup = new Lookup(challengeDnsDomain, Type.TXT);
@@ -280,8 +254,9 @@ public class LetsEncryptService extends AbstractBasics {
         }
 
         // Push certificate
-        RSACertificate caRsaCertificate = RSACertificate.loadPemFromString(CA_CERTIFICATE_TEXT_PEM);
-        for (WebApp httpsWebApp : configuration.getHttpsWebApp()) {
+        if (httpsWebAppToPushCert.isPresent()) {
+            RSACertificate caRsaCertificate = RSACertificate.loadPemFromString(CA_CERTIFICATE_TEXT_PEM);
+            WebApp httpsWebApp = httpsWebAppToPushCert.get();
             logger.info("Push certificate on {}", httpsWebApp);
             cloudService.pushCertificate(domainName, httpsWebApp, caRsaCertificate, rsaCertificate, pfxPassword);
         }

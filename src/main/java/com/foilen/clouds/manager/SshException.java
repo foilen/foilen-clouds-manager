@@ -15,7 +15,7 @@ public class SshException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;
 
-    private Queue<String> lastErrorLines;
+    private final Queue<String> lastErrorLines;
 
     public SshException(String message, Queue<String> lastErrorLines) {
         super(message);

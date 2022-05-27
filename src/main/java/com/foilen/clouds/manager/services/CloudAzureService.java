@@ -15,8 +15,10 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
+import com.foilen.clouds.manager.services.model.*;
 import org.bouncycastle.asn1.DERBMPString;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils;
@@ -28,7 +30,6 @@ import org.bouncycastle.pkcs.PKCS12SafeBag;
 import org.bouncycastle.pkcs.bc.BcPKCS12MacCalculatorBuilder;
 import org.bouncycastle.pkcs.bc.BcPKCS12PBEOutputEncryptorBuilder;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS12SafeBagBuilder;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.azure.core.credential.TokenCredential;
@@ -40,8 +41,6 @@ import com.azure.core.management.exception.ManagementException;
 import com.azure.core.management.profile.AzureProfile;
 import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.resourcemanager.AzureResourceManager;
-import com.azure.resourcemanager.appservice.models.SslState;
-import com.azure.resourcemanager.appservice.models.WebAppBasic;
 import com.azure.resourcemanager.authorization.models.ActiveDirectoryUser;
 import com.azure.resourcemanager.authorization.models.BuiltInRole;
 import com.azure.resourcemanager.dns.fluent.models.RecordSetInner;
@@ -49,14 +48,8 @@ import com.azure.resourcemanager.dns.models.CnameRecord;
 import com.azure.resourcemanager.dns.models.DnsZone;
 import com.azure.resourcemanager.keyvault.models.Secret;
 import com.azure.resourcemanager.keyvault.models.Vault;
-import com.azure.resourcemanager.resources.models.ResourceGroup;
 import com.foilen.clouds.manager.CliException;
 import com.foilen.clouds.manager.commands.model.RawDnsEntry;
-import com.foilen.clouds.manager.services.model.AzureConstants;
-import com.foilen.clouds.manager.services.model.AzureDnsZone;
-import com.foilen.clouds.manager.services.model.AzureKeyVault;
-import com.foilen.clouds.manager.services.model.AzureWebApp;
-import com.foilen.clouds.manager.services.model.ResourcesBucket;
 import com.foilen.clouds.manager.services.model.json.AzProfileDetails;
 import com.foilen.clouds.manager.services.model.json.AzSubscription;
 import com.foilen.smalltools.JavaEnvironmentValues;
@@ -76,25 +69,37 @@ public class CloudAzureService extends AbstractBasics {
         return JsonTools.readFromFile(azureProfileFile, AzProfileDetails.class);
     }
 
-    @Autowired
-    private ResourcesBucketService resourcesBucketService;
     private AzureProfile profile;
     private TokenCredential tokenCredential;
     private AzureResourceManager azureResourceManager;
 
     private String userName;
 
-    public void discoverAll() {
+    public Optional<com.foilen.clouds.manager.services.model.DnsZone> dnsFindById(String azureDnsZoneId) {
 
         init();
 
-        ResourcesBucket resourcesBucket = new ResourcesBucket();
+        logger.info("Get DNS Zone {}", azureDnsZoneId);
+        try {
+            DnsZone dnsZone = azureResourceManager.dnsZones().getById(azureDnsZoneId);
+            return Optional.of(AzureDnsZone.from(dnsZone));
+        } catch (ResourceNotFoundException e) {
+            return Optional.empty();
+        }
 
-        dnsZonesDiscoverAll(resourcesBucket);
-        webAppServicesDiscoverAll(resourcesBucket);
-        keyVaultsDiscoverAll(resourcesBucket);
+    }
 
-        resourcesBucketService.setAzureResourcesBucket(resourcesBucket);
+    public Optional<AzureDnsZone> dnsFindByName(String resourceGroupName, String dnsZoneName) {
+
+        init();
+
+        logger.info("Get DNS Zone {} / {}", resourceGroupName, dnsZoneName);
+        try {
+            DnsZone dnsZone = azureResourceManager.dnsZones().getByResourceGroup(resourceGroupName, dnsZoneName);
+            return Optional.of(AzureDnsZone.from(dnsZone));
+        } catch (ResourceNotFoundException e) {
+            return Optional.empty();
+        }
 
     }
 
@@ -191,112 +196,92 @@ public class CloudAzureService extends AbstractBasics {
         String subDomain = rawDnsEntry.getName();
         subDomain = subDomain.substring(0, subDomain.length() - 1 - baseDomainName.length());
         switch (rawDnsEntry.getType()) {
-        case "AAAA":
-            dnsZone.update() //
-                    .withoutAaaaRecordSet(subDomain) //
-                    .apply();
-            dnsZone.update() //
-                    .defineAaaaRecordSet(subDomain) //
-                    .withIPv6Address(rawDnsEntry.getDetails()) //
-                    .withTimeToLive(rawDnsEntry.getTtl()) //
-                    .attach() //
-                    .apply();
-            break;
+            case "AAAA":
+                dnsZone.update() //
+                        .withoutAaaaRecordSet(subDomain) //
+                        .apply();
+                dnsZone.update() //
+                        .defineAaaaRecordSet(subDomain) //
+                        .withIPv6Address(rawDnsEntry.getDetails()) //
+                        .withTimeToLive(rawDnsEntry.getTtl()) //
+                        .attach() //
+                        .apply();
+                break;
 
-        case "A":
-            dnsZone.update() //
-                    .withoutARecordSet(subDomain) //
-                    .apply();
-            dnsZone.update() //
-                    .defineARecordSet(subDomain) //
-                    .withIPv4Address(rawDnsEntry.getDetails()) //
-                    .withTimeToLive(rawDnsEntry.getTtl()) //
-                    .attach() //
-                    .apply();
-            break;
+            case "A":
+                dnsZone.update() //
+                        .withoutARecordSet(subDomain) //
+                        .apply();
+                dnsZone.update() //
+                        .defineARecordSet(subDomain) //
+                        .withIPv4Address(rawDnsEntry.getDetails()) //
+                        .withTimeToLive(rawDnsEntry.getTtl()) //
+                        .attach() //
+                        .apply();
+                break;
 
-        case "CNAME":
-            dnsZone.update() //
-                    .withoutCNameRecordSet(subDomain) //
-                    .apply();
-            dnsZone.update() //
-                    .defineCNameRecordSet(subDomain) //
-                    .withAlias(rawDnsEntry.getDetails()) //
-                    .withTimeToLive(rawDnsEntry.getTtl()) //
-                    .attach() //
-                    .apply();
-            break;
+            case "CNAME":
+                dnsZone.update() //
+                        .withoutCNameRecordSet(subDomain) //
+                        .apply();
+                dnsZone.update() //
+                        .defineCNameRecordSet(subDomain) //
+                        .withAlias(rawDnsEntry.getDetails()) //
+                        .withTimeToLive(rawDnsEntry.getTtl()) //
+                        .attach() //
+                        .apply();
+                break;
 
-        case "MX":
-            dnsZone.update() //
-                    .withoutMXRecordSet(subDomain) //
-                    .apply();
-            dnsZone.update() //
-                    .defineMXRecordSet(subDomain) //
-                    .withMailExchange(rawDnsEntry.getDetails(), rawDnsEntry.getPriority()) //
-                    .withTimeToLive(rawDnsEntry.getTtl()) //
-                    .attach() //
-                    .apply();
-            break;
+            case "MX":
+                dnsZone.update() //
+                        .withoutMXRecordSet(subDomain) //
+                        .apply();
+                dnsZone.update() //
+                        .defineMXRecordSet(subDomain) //
+                        .withMailExchange(rawDnsEntry.getDetails(), rawDnsEntry.getPriority()) //
+                        .withTimeToLive(rawDnsEntry.getTtl()) //
+                        .attach() //
+                        .apply();
+                break;
 
-        case "NS":
-            dnsZone.update() //
-                    .withoutNSRecordSet(subDomain) //
-                    .apply();
-            dnsZone.update() //
-                    .defineNSRecordSet(subDomain) //
-                    .withNameServer(rawDnsEntry.getDetails()) //
-                    .withTimeToLive(rawDnsEntry.getTtl()) //
-                    .attach() //
-                    .apply();
-            break;
+            case "NS":
+                dnsZone.update() //
+                        .withoutNSRecordSet(subDomain) //
+                        .apply();
+                dnsZone.update() //
+                        .defineNSRecordSet(subDomain) //
+                        .withNameServer(rawDnsEntry.getDetails()) //
+                        .withTimeToLive(rawDnsEntry.getTtl()) //
+                        .attach() //
+                        .apply();
+                break;
 
-        case "SRV":
-            dnsZone.update() //
-                    .withoutSrvRecordSet(subDomain) //
-                    .apply();
-            dnsZone.update() //
-                    .defineSrvRecordSet(subDomain) //
-                    .withRecord(subDomain, rawDnsEntry.getPort(), rawDnsEntry.getPriority(), rawDnsEntry.getWeight()) //
-                    .withTimeToLive(rawDnsEntry.getTtl()) //
-                    .attach() //
-                    .apply();
-            break;
+            case "SRV":
+                dnsZone.update() //
+                        .withoutSrvRecordSet(subDomain) //
+                        .apply();
+                dnsZone.update() //
+                        .defineSrvRecordSet(subDomain) //
+                        .withRecord(subDomain, rawDnsEntry.getPort(), rawDnsEntry.getPriority(), rawDnsEntry.getWeight()) //
+                        .withTimeToLive(rawDnsEntry.getTtl()) //
+                        .attach() //
+                        .apply();
+                break;
 
-        case "TXT":
-            dnsZone.update() //
-                    .withoutTxtRecordSet(subDomain) //
-                    .apply();
-            dnsZone.update() //
-                    .defineTxtRecordSet(subDomain) //
-                    .withText(rawDnsEntry.getDetails()) //
-                    .withTimeToLive(rawDnsEntry.getTtl()) //
-                    .attach() //
-                    .apply();
-            break;
+            case "TXT":
+                dnsZone.update() //
+                        .withoutTxtRecordSet(subDomain) //
+                        .apply();
+                dnsZone.update() //
+                        .defineTxtRecordSet(subDomain) //
+                        .withText(rawDnsEntry.getDetails()) //
+                        .withTimeToLive(rawDnsEntry.getTtl()) //
+                        .attach() //
+                        .apply();
+                break;
 
         }
 
-    }
-
-    private void dnsZonesDiscoverAll(ResourcesBucket resourcesBucket) {
-
-        init();
-
-        logger.info("DNS Zones");
-        PagedIterable<DnsZone> dnsZones = azureResourceManager.dnsZones().list();
-        dnsZones.forEach(dnsZone -> {
-            logger.info("DNS Zone [{}] : {}", dnsZone.name(), dnsZone.id());
-            dnsZone.listRecordSets().forEach(record -> {
-                String domain = record.fqdn();
-                while (domain.endsWith(".")) {
-                    domain = domain.substring(0, domain.length() - 1);
-                }
-                logger.info("DNS Zone [{}] Record : {}", dnsZone.name(), domain);
-                resourcesBucket.addDomain(domain, AzureDnsZone.from(dnsZone));
-            });
-
-        });
     }
 
     private void init() {
@@ -338,23 +323,27 @@ public class CloudAzureService extends AbstractBasics {
 
     }
 
-    public AzureKeyVault keyVaultCreate(String keyVaultName, String regionName, String resourceGroup) {
+    public AzureKeyVault keyVaultCreate(String resourceGroupName, Optional<String> regionName, String keyVaultName) {
 
         init();
+
+        // Get the resource group's region if not provided
+        if (regionName.isEmpty()) {
+            logger.info("Region not provided. Getting the one for the resource group {}", resourceGroupName);
+            var resourceGroup = azureResourceManager.resourceGroups().getByName(resourceGroupName);
+            regionName = Optional.of(resourceGroup.regionName());
+            logger.info("Will use region {}", regionName.get());
+        }
 
         // Create the vault
         logger.info("Create vault {}", keyVaultName);
         Vault vault = azureResourceManager.vaults().define(keyVaultName) //
-                .withRegion(regionName) //
-                .withExistingResourceGroup(resourceGroup) //
+                .withRegion(regionName.get()) //
+                .withExistingResourceGroup(resourceGroupName) //
                 .withRoleBasedAccessControl() //
                 .create();
 
         AzureKeyVault azureKeyVault = AzureKeyVault.from(vault);
-
-        resourcesBucketService.updateAzureResourcesBucket(resourcesBucket -> {
-            resourcesBucket.addSecretStore(resourceGroup, azureKeyVault);
-        });
 
         // Find current user
         logger.info("Find user {}", userName);
@@ -380,27 +369,6 @@ public class CloudAzureService extends AbstractBasics {
         }
 
         return azureKeyVault;
-    }
-
-    private void keyVaultsDiscoverAll(ResourcesBucket resourcesBucket) {
-
-        init();
-
-        logger.info("Resource Groups");
-        PagedIterable<ResourceGroup> resourceGroups = azureResourceManager.resourceGroups().list();
-        resourceGroups.forEach(resourceGroup -> {
-            String resourceGroupName = resourceGroup.name();
-            logger.info("Resource Group [{}] : {}", resourceGroupName, resourceGroup.id());
-
-            logger.info("Vault in Resource Group {}", resourceGroupName);
-            PagedIterable<Vault> vaults = azureResourceManager.vaults().listByResourceGroup(resourceGroupName);
-            vaults.forEach(vault -> {
-                logger.info("Vault [{}] : {}", vault.name(), vault.id());
-                resourcesBucket.addSecretStore(resourceGroupName, AzureKeyVault.from(vault));
-            });
-
-        });
-
     }
 
     public String keyVaultSecretGetAsText(AzureKeyVault azureKeyVault, String secretName) {
@@ -501,7 +469,7 @@ public class CloudAzureService extends AbstractBasics {
                             ) //
                                     .setIterationCount(2048) //
                                     .build(pfxPassword.toCharArray()),
-                            new PKCS12SafeBag[] { //
+                            new PKCS12SafeBag[]{ //
                                     new JcaPKCS12SafeBagBuilder( //
                                             privateKey, //
                                             new BcPKCS12PBEOutputEncryptorBuilder( //
@@ -539,22 +507,39 @@ public class CloudAzureService extends AbstractBasics {
 
     }
 
-    private void webAppServicesDiscoverAll(ResourcesBucket resourcesBucket) {
+    public Optional<AzureKeyVault> keyVaultFindByName(String resourceGroupName, String keyVaultName) {
 
         init();
 
-        logger.info("Web App Services");
+        try {
+            var resource = azureResourceManager.vaults().getByResourceGroup(resourceGroupName, keyVaultName);
+            return Optional.of(AzureKeyVault.from(resource));
+        } catch (ResourceNotFoundException e) {
+            return Optional.empty();
+        }
+    }
 
-        PagedIterable<WebAppBasic> webApps = azureResourceManager.webApps().list();
-        webApps.forEach(webApp -> {
-            logger.info("WebApp [{}] : {}", webApp.name(), webApp.id());
+    public Optional<SecretStore> keyVaultFindById(String azureKeyVaultId) {
 
-            webApp.hostnameSslStates().forEach((hostname, state) -> {
-                boolean ssl = state.sslState() != SslState.DISABLED;
-                logger.info("WebApp [{}] Domain : {} ; Ssl : {}", webApp.name(), hostname, ssl);
-                resourcesBucket.addDomain(hostname, AzureWebApp.from(webApp), ssl);
-            });
-        });
+        init();
 
+        try {
+            var resource = azureResourceManager.vaults().getById(azureKeyVaultId);
+            return Optional.of(AzureKeyVault.from(resource));
+        } catch (ResourceNotFoundException e) {
+            return Optional.empty();
+        }
+    }
+
+    public Optional<WebApp> webappFindById(String azureWebappId) {
+
+        init();
+
+        try {
+            var resource = azureResourceManager.webApps().getById(azureWebappId);
+            return Optional.of(AzureWebApp.from(resource));
+        } catch (ResourceNotFoundException e) {
+            return Optional.empty();
+        }
     }
 }

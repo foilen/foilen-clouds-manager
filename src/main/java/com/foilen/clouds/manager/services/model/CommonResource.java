@@ -13,7 +13,7 @@ import com.foilen.smalltools.tools.AbstractBasics;
 
 public abstract class CommonResource extends AbstractBasics implements CloudProviderInfo {
 
-    private CloudProvider provider;
+    private final CloudProvider provider;
 
     private String id;
 

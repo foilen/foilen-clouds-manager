@@ -23,7 +23,7 @@ import com.foilen.smalltools.tools.AbstractBasics;
 @Component
 public class DockerHubService extends AbstractBasics {
 
-    private static RestTemplate restTemplate = new RestTemplate();
+    private static final RestTemplate restTemplate = new RestTemplate();
 
     public OnlineFileDetails getLatestVersionDockerHub(String imageName) {
         DockerHubTagsResponse tags = restTemplate.getForObject("https://hub.docker.com/v2/repositories/{imageName}/tags/", DockerHubTagsResponse.class,

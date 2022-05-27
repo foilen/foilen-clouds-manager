@@ -22,8 +22,6 @@ import com.foilen.clouds.manager.services.model.AzureKeyVault;
 import com.foilen.clouds.manager.services.model.AzureResourceGroup;
 import com.foilen.clouds.manager.services.model.AzureWebApp;
 import com.foilen.clouds.manager.services.model.DnsZone;
-import com.foilen.clouds.manager.services.model.DomainConfiguration;
-import com.foilen.clouds.manager.services.model.ResourcesBucket;
 import com.foilen.clouds.manager.services.model.SecretStore;
 import com.foilen.clouds.manager.services.model.WebApp;
 import com.foilen.smalltools.crypt.bouncycastle.cert.RSACertificate;
@@ -107,40 +105,6 @@ public class CloudService extends AbstractBasics {
 
         throw new CliException("Unknown provider");
 
-    }
-
-    public SecretStore secretStoreFindOrFail(ResourcesBucket resourcesBucket, DomainConfiguration configuration, String prefixName) {
-
-        logger.info("Find an existing secret store for {} with prefix name {}", configuration.getDomainName(), prefixName);
-
-        List<String> usedResourceGroups = new ArrayList<>();
-        configuration.getHttpsWebApp().forEach(item -> addGroupToListIfNotPresent(usedResourceGroups, item));
-        configuration.getHttpWebApp().forEach(item -> addGroupToListIfNotPresent(usedResourceGroups, item));
-        configuration.getDnsZones().forEach(item -> addGroupToListIfNotPresent(usedResourceGroups, item));
-        logger.info("Preferred groups order {}", usedResourceGroups);
-
-        SecretStore secretStore = null;
-        for (String preferredGroup : usedResourceGroups) {
-            List<SecretStore> secretStores = resourcesBucket.getSecretStoresByGroup().get(preferredGroup);
-            if (secretStores != null && !secretStores.isEmpty()) {
-                for (SecretStore nextSecretStore : secretStores) {
-                    if (nextSecretStore.getName().startsWith(prefixName)) {
-                        secretStore = nextSecretStore;
-                        break;
-                    }
-                }
-
-            }
-        }
-
-        if (secretStore == null) {
-            logger.info("Didn't find any secret store prefixed with {} in these resource groups: {}", prefixName, usedResourceGroups);
-
-            throw new CliException("No available secret store");
-        }
-
-        logger.info("Will use secret store {}", secretStore.getName(), secretStore.getId());
-        return secretStore;
     }
 
     public void setCloudAzureService(CloudAzureService cloudAzureService) {

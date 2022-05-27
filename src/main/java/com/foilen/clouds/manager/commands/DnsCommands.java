@@ -42,8 +42,6 @@ import com.foilen.clouds.manager.CliException;
 import com.foilen.clouds.manager.commands.model.RawDnsEntry;
 import com.foilen.clouds.manager.services.CloudService;
 import com.foilen.clouds.manager.services.DisplayService;
-import com.foilen.clouds.manager.services.ResourcesBucketService;
-import com.foilen.clouds.manager.services.model.DomainConfiguration;
 import com.foilen.smalltools.reflection.ReflectionTools;
 import com.foilen.smalltools.tools.AbstractBasics;
 import com.foilen.smalltools.tools.JsonTools;
@@ -56,8 +54,6 @@ public class DnsCommands extends AbstractBasics {
     private CloudService cloudService;
     @Autowired
     private DisplayService displayService;
-    @Autowired
-    private ResourcesBucketService resourcesBucketService;
 
     private void addSubDomains(Collection<String> hostnames, String hostname, String... subs) {
         for (String sub : subs) {
@@ -65,36 +61,16 @@ public class DnsCommands extends AbstractBasics {
         }
     }
 
-    @ShellMethod("Using the cloud DNS service, list the entries for that domain")
-    public void dnsCloudList( //
-            String hostname //
-    ) {
-
-        System.out.println("\n\n---[" + hostname + "]---");
-        DomainConfiguration domainConfiguration = resourcesBucketService.getAllResourcesBucket().getConfigurationByDomain().get(hostname);
-        if (domainConfiguration == null) {
-            throw new CliException("Unknown domain in the resources bucket");
-        }
-
-        domainConfiguration.getDnsZones().forEach(dnsZone -> {
-            displayService.displayResource(0, dnsZone);
-            List<RawDnsEntry> dnsEntries = cloudService.dnsListEntries(dnsZone, hostname);
-            dnsEntries.stream().sorted().distinct() //
-                    .forEach(it -> System.out.println(JsonTools.compactPrintWithoutNulls(it)));
-        });
-
-    }
-
     @ShellMethod("Look the current DNS entries for a hostname with common sub-domains")
-    public void dnsQuery( //
-            String hostname, //
-            @ShellOption(defaultValue = ShellOption.NULL) String moreSubDomains, //
-            @ShellOption(defaultValue = ShellOption.NULL) String usingDnsServer //
+    public void dnsQuery(
+            String hostname,
+            @ShellOption(defaultValue = ShellOption.NULL) String moreSubDomains,
+            @ShellOption(defaultValue = ShellOption.NULL) String usingDnsServer
     ) {
 
         List<RawDnsEntry> dnsEntries = listRawDnsEntries(hostname, moreSubDomains, usingDnsServer);
         System.out.println("\n\n---[" + hostname + "]---");
-        dnsEntries.stream().sorted().distinct() //
+        dnsEntries.stream().sorted().distinct()
                 .forEach(it -> System.out.println(JsonTools.compactPrintWithoutNulls(it)));
 
     }
@@ -103,7 +79,7 @@ public class DnsCommands extends AbstractBasics {
         // Hostnames to check
         Deque<String> hostnames = new LinkedList<>();
         hostnames.add(hostname);
-        addSubDomains(hostnames, hostname, //
+        addSubDomains(hostnames, hostname,
                 "ns1", "ns2", "ns3", "ns4", // DNS
                 "beta", "dev", "pre", "www", "w3", // Web
                 "_imap._tcp", "_imaps._tcp", "_submission._tcp", "_pop._tcp", "_pop3._tcp", "autodiscover", "email", "imap", "mail", "mx", "pop", "pop3", "smtp", // Emails
@@ -162,58 +138,58 @@ public class DnsCommands extends AbstractBasics {
                                 .setName(record.getName().toString(true)) //
                                 .setType(typeName) //
                                 .setTtl(record.getTTL()) //
-                        ;
+                                ;
                         switch (record.getType()) {
-                        case Type.A:
-                            dnsEntry.setDetails(((ARecord) record).getAddress().getHostAddress());
-                            dnsEntries.add(dnsEntry);
-                            break;
-                        case Type.AAAA:
-                            dnsEntry.setDetails(((AAAARecord) record).getAddress().getHostAddress());
-                            dnsEntries.add(dnsEntry);
-                            break;
-                        case Type.CNAME:
-                            dnsEntry.setDetails(((CNAMERecord) record).getTarget().toString(true));
-                            dnsEntries.add(dnsEntry);
-                            if (dnsEntry.getDetails().endsWith(hostname)) {
-                                hostnames.add(dnsEntry.getDetails());
-                            }
-                            break;
-                        case Type.MX:
-                            MXRecord mxRecord = (MXRecord) record;
-                            dnsEntry.setDetails(mxRecord.getTarget().toString(true));
-                            dnsEntry.setPriority(mxRecord.getPriority());
-                            dnsEntries.add(dnsEntry);
-                            if (dnsEntry.getDetails().endsWith(hostname)) {
-                                hostnames.add(dnsEntry.getDetails());
-                            }
-                            break;
-                        case Type.NS:
-                            dnsEntry.setDetails(((NSRecord) record).getTarget().toString(true));
-                            dnsEntries.add(dnsEntry);
-                            break;
-                        case Type.TXT:
-                            ((List<?>) ((TXTRecord) record).getStrings()).forEach(it -> {
-                                dnsEntry.setDetails(it.toString());
-                                dnsEntries.add(JsonTools.clone(dnsEntry));
-                            });
-                            break;
-                        case Type.SOA:
-                            break;
-                        case Type.SRV:
-                            SRVRecord srvRecord = (SRVRecord) record;
-                            dnsEntry.setDetails(srvRecord.getTarget().toString(true));
-                            dnsEntry.setPriority(srvRecord.getPriority());
-                            dnsEntry.setWeight(srvRecord.getWeight());
-                            dnsEntry.setPort(srvRecord.getPort());
-                            dnsEntries.add(dnsEntry);
-                            if (dnsEntry.getDetails().endsWith(hostname)) {
-                                hostnames.add(dnsEntry.getDetails());
-                            }
-                            break;
-                        default:
-                            logger.error("Unknown type {} for {}", typeName, nextHostname);
-                            continue;
+                            case Type.A:
+                                dnsEntry.setDetails(((ARecord) record).getAddress().getHostAddress());
+                                dnsEntries.add(dnsEntry);
+                                break;
+                            case Type.AAAA:
+                                dnsEntry.setDetails(((AAAARecord) record).getAddress().getHostAddress());
+                                dnsEntries.add(dnsEntry);
+                                break;
+                            case Type.CNAME:
+                                dnsEntry.setDetails(((CNAMERecord) record).getTarget().toString(true));
+                                dnsEntries.add(dnsEntry);
+                                if (dnsEntry.getDetails().endsWith(hostname)) {
+                                    hostnames.add(dnsEntry.getDetails());
+                                }
+                                break;
+                            case Type.MX:
+                                MXRecord mxRecord = (MXRecord) record;
+                                dnsEntry.setDetails(mxRecord.getTarget().toString(true));
+                                dnsEntry.setPriority(mxRecord.getPriority());
+                                dnsEntries.add(dnsEntry);
+                                if (dnsEntry.getDetails().endsWith(hostname)) {
+                                    hostnames.add(dnsEntry.getDetails());
+                                }
+                                break;
+                            case Type.NS:
+                                dnsEntry.setDetails(((NSRecord) record).getTarget().toString(true));
+                                dnsEntries.add(dnsEntry);
+                                break;
+                            case Type.TXT:
+                                ((TXTRecord) record).getStrings().forEach(it -> {
+                                    dnsEntry.setDetails(it.toString());
+                                    dnsEntries.add(JsonTools.clone(dnsEntry));
+                                });
+                                break;
+                            case Type.SOA:
+                                break;
+                            case Type.SRV:
+                                SRVRecord srvRecord = (SRVRecord) record;
+                                dnsEntry.setDetails(srvRecord.getTarget().toString(true));
+                                dnsEntry.setPriority(srvRecord.getPriority());
+                                dnsEntry.setWeight(srvRecord.getWeight());
+                                dnsEntry.setPort(srvRecord.getPort());
+                                dnsEntries.add(dnsEntry);
+                                if (dnsEntry.getDetails().endsWith(hostname)) {
+                                    hostnames.add(dnsEntry.getDetails());
+                                }
+                                break;
+                            default:
+                                logger.error("Unknown type {} for {}", typeName, nextHostname);
+                                continue;
                         }
 
                     }

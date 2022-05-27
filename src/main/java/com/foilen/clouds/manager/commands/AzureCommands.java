@@ -18,37 +18,31 @@ import org.springframework.shell.standard.ShellOption;
 
 import com.foilen.clouds.manager.CliException;
 import com.foilen.clouds.manager.services.CloudAzureService;
-import com.foilen.clouds.manager.services.ResourcesBucketService;
 import com.foilen.clouds.manager.services.model.AzureKeyVault;
-import com.foilen.clouds.manager.services.model.SecretStore;
-import com.foilen.smalltools.tools.StringTools;
 
 @ShellComponent
 public class AzureCommands {
 
     @Autowired
     private CloudAzureService cloudAzureService;
-    @Autowired
-    private ResourcesBucketService resourcesBucketService;
 
     @ShellMethod("Create an Azure key vault")
-    public void azureKeyVaulCreate(//
-            @ShellOption String keyVaultName, //
-            @ShellOption String regionName, //
-            @ShellOption String resourceGroup //
+    public void azureKeyVaulCreate(
+            @ShellOption String resourceGroupName,
+            @ShellOption(defaultValue = ShellOption.NULL) String regionName,
+            @ShellOption String keyVaultName
     ) {
-
-        cloudAzureService.keyVaultCreate(keyVaultName, regionName, resourceGroup);
-
+        cloudAzureService.keyVaultCreate(resourceGroupName, Optional.ofNullable(regionName), keyVaultName);
     }
 
     @ShellMethod("List secrets in Azure key vault")
-    public void azureKeyVaulSecretList(//
+    public void azureKeyVaulSecretList(
+            @ShellOption String resourceGroupName, //
             @ShellOption String keyVaultName, //
             @ShellOption(defaultValue = "false") boolean showValues //
     ) {
 
-        AzureKeyVault azureKeyVault = findKeyVaultByNameOrFail(keyVaultName);
+        AzureKeyVault azureKeyVault = findKeyVaultByNameOrFail(resourceGroupName, keyVaultName);
 
         System.out.println("---[ Secrets in keyvault " + keyVaultName + " ]---");
         cloudAzureService.keyVaultSecretList(azureKeyVault).streamByPage() //
@@ -65,29 +59,27 @@ public class AzureCommands {
     }
 
     @ShellMethod("Set a secret in Azure key vault")
-    public void azureKeyVaulSecretSet(//
-            @ShellOption String keyVaultName, //
-            @ShellOption String secretName, //
-            @ShellOption String value //
+    public void azureKeyVaulSecretSet(
+            @ShellOption String resourceGroupName,
+            @ShellOption String keyVaultName,
+            @ShellOption String secretName,
+            @ShellOption String value
     ) {
 
-        AzureKeyVault azureKeyVault = findKeyVaultByNameOrFail(keyVaultName);
+        AzureKeyVault azureKeyVault = findKeyVaultByNameOrFail(resourceGroupName, keyVaultName);
 
         cloudAzureService.keyVaultSecretSetAsTextOrFail(azureKeyVault, secretName, value);
 
     }
 
-    private AzureKeyVault findKeyVaultByNameOrFail(String keyVaultName) {
-        Optional<SecretStore> secretStore = resourcesBucketService.getAzureResourcesBucket().getSecretStoresByGroup().values().stream() //
-                .flatMap(it -> it.stream()) //
-                .filter(it -> StringTools.safeEquals(keyVaultName, it.getName())) //
-                .findAny();
+    private AzureKeyVault findKeyVaultByNameOrFail(String resourceGroupName, String keyVaultName) {
+        Optional<AzureKeyVault> azureKeyVault = cloudAzureService.keyVaultFindByName(resourceGroupName, keyVaultName);
 
-        if (secretStore.isEmpty()) {
+        if (azureKeyVault.isEmpty()) {
             System.out.println("Unknown key vault");
             throw new CliException("Unknown key vault");
         }
-        return (AzureKeyVault) secretStore.get();
+        return azureKeyVault.get();
     }
 
 }
