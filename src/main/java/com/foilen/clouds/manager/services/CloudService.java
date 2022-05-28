@@ -9,7 +9,6 @@
  */
 package com.foilen.clouds.manager.services;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,7 +51,7 @@ public class CloudService extends AbstractBasics {
 
         switch (dnsZone.getProvider()) {
         case AZURE:
-            return cloudAzureService.dnsListEntries((AzureDnsZone) dnsZone);
+            return cloudAzureService.dnsZoneEntryList((AzureDnsZone) dnsZone);
         }
 
         throw new CliException("Unknown provider");

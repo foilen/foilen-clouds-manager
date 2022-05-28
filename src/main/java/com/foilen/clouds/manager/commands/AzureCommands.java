@@ -36,6 +36,24 @@ public class AzureCommands {
 
     }
 
+    @ShellMethod("List the entries in the DNS Zone")
+    public void azureDnsZoneEntryList(
+            @ShellOption String resourceGroupName,
+            @ShellOption String dnsZoneName
+    ) {
+
+        var azureDnsZone = cloudAzureService.dnsZoneFindByName(resourceGroupName, dnsZoneName);
+        if (azureDnsZone.isEmpty()) {
+            System.out.println("Unknown dns zone");
+            throw new CliException("Unknown dns zone");
+        }
+
+        for (var rawDnsEntry : cloudAzureService.dnsZoneEntryList(azureDnsZone.get())) {
+            System.out.println(rawDnsEntry);
+        }
+
+    }
+
     @ShellMethod("Create an Azure key vault")
     public void azureKeyVaulCreate(
             @ShellOption String resourceGroupName,

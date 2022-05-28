@@ -33,10 +33,10 @@ public class RawDnsEntry extends AbstractBasics implements Comparable<RawDnsEntr
         cc = cc.compare(name, o.name);
         cc = cc.compare(type, o.type);
         cc = cc.compare(details, o.details);
+        cc = cc.compare(ttl, o.ttl);
         cc = cc.compare(priority == null ? Integer.valueOf(0) : priority, o.priority == null ? Integer.valueOf(0) : o.priority);
         cc = cc.compare(weight == null ? Integer.valueOf(0) : weight, o.weight == null ? Integer.valueOf(0) : o.weight);
         cc = cc.compare(port == null ? Integer.valueOf(0) : port, o.port == null ? Integer.valueOf(0) : o.port);
-        cc = cc.compare(ttl, o.ttl);
         return cc.result();
     }
 
@@ -101,6 +101,19 @@ public class RawDnsEntry extends AbstractBasics implements Comparable<RawDnsEntr
     public RawDnsEntry setWeight(Integer weight) {
         this.weight = weight;
         return this;
+    }
+
+    @Override
+    public String toString() {
+        return "RawDnsEntry{" +
+                "name='" + name + '\'' +
+                ", type='" + type + '\'' +
+                ", details='" + details + '\'' +
+                ", ttl=" + ttl +
+                ", priority=" + priority +
+                ", weight=" + weight +
+                ", port=" + port +
+                '}';
     }
 
 }

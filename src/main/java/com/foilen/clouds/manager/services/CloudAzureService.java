@@ -13,10 +13,7 @@ import java.io.File;
 import java.io.IOException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import com.foilen.clouds.manager.services.model.*;
@@ -103,7 +100,7 @@ public class CloudAzureService extends AbstractBasics {
 
     }
 
-    public Optional<AzureDnsZone> dnsFindByName(String resourceGroupName, String dnsZoneName) {
+    public Optional<AzureDnsZone> dnsZoneFindByName(String resourceGroupName, String dnsZoneName) {
 
         init();
 
@@ -111,13 +108,16 @@ public class CloudAzureService extends AbstractBasics {
         try {
             DnsZone dnsZone = azureResourceManager.dnsZones().getByResourceGroup(resourceGroupName, dnsZoneName);
             return Optional.of(AzureDnsZone.from(dnsZone));
-        } catch (ResourceNotFoundException e) {
-            return Optional.empty();
+        } catch (ManagementException e) {
+            if (StringTools.safeEquals(e.getValue().getCode(), AzureConstants.RESOURCE_NOT_FOUND)) {
+                return Optional.empty();
+            }
+            throw e;
         }
 
     }
 
-    public List<RawDnsEntry> dnsListEntries(AzureDnsZone azureDnsZone) {
+    public List<RawDnsEntry> dnsZoneEntryList(AzureDnsZone azureDnsZone) {
 
         init();
 
@@ -195,6 +195,7 @@ public class CloudAzureService extends AbstractBasics {
             }
         });
 
+        Collections.sort(rawDnsEntries);
         return rawDnsEntries;
     }
 
