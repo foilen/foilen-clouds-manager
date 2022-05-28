@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import com.foilen.clouds.manager.services.model.*;
 import org.bouncycastle.asn1.DERBMPString;
@@ -86,6 +87,19 @@ public class CloudAzureService extends AbstractBasics {
         } catch (ResourceNotFoundException e) {
             return Optional.empty();
         }
+
+    }
+
+    public List<AzureDnsZone> dnsZoneList() {
+
+        init();
+
+        logger.info("List DNS Zones");
+        var dnsZoneIt = azureResourceManager.dnsZones().list();
+        return dnsZoneIt.stream()
+                .map(AzureDnsZone::from)
+                .sorted((a, b) -> StringTools.safeComparisonNullFirst(a.getName(), b.getName()))
+                .collect(Collectors.toList());
 
     }
 
@@ -542,4 +556,5 @@ public class CloudAzureService extends AbstractBasics {
             return Optional.empty();
         }
     }
+
 }

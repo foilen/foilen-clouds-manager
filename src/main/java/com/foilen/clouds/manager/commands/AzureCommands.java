@@ -11,6 +11,7 @@ package com.foilen.clouds.manager.commands;
 
 import java.util.Optional;
 
+import com.foilen.clouds.manager.services.model.AzureDnsZone;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.shell.standard.ShellComponent;
 import org.springframework.shell.standard.ShellMethod;
@@ -25,6 +26,15 @@ public class AzureCommands {
 
     @Autowired
     private CloudAzureService cloudAzureService;
+
+    @ShellMethod("List the DNS Zones")
+    public void azureDnsZoneList() {
+
+        for (AzureDnsZone azureDnsZone : cloudAzureService.dnsZoneList()) {
+            System.out.println(azureDnsZone.getName() + " (" + azureDnsZone.getId() + ")");
+        }
+
+    }
 
     @ShellMethod("Create an Azure key vault")
     public void azureKeyVaulCreate(
