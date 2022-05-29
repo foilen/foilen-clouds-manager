@@ -100,6 +100,15 @@ public class AzureCommands {
 
     }
 
+    @ShellMethod("List the MariaDB databases")
+    public void azureMariadbList() {
+
+        for (var azureMariadb : cloudAzureService.mariadbList()) {
+            System.out.println(azureMariadb.getName() + " (" + azureMariadb.getId() + ")");
+        }
+
+    }
+
     private AzureKeyVault findKeyVaultByNameOrFail(String resourceGroupName, String keyVaultName) {
         Optional<AzureKeyVault> azureKeyVault = cloudAzureService.keyVaultFindByName(resourceGroupName, keyVaultName);
 

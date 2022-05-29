@@ -45,7 +45,8 @@ dependencies {
   // Microsoft Azure
   implementation "com.azure:azure-identity:1.5.1"
   implementation "com.azure.resourcemanager:azure-resourcemanager:2.15.0"
-  
+  implementation "com.azure.resourcemanager:azure-resourcemanager-mariadb:1.0.0-beta.1"
+
   testImplementation "junit:junit"
   testImplementation "org.springframework.boot:spring-boot-starter-test"
 }

@@ -16,6 +16,7 @@ import java.security.PublicKey;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import com.azure.resourcemanager.mariadb.MariaDBManager;
 import com.foilen.clouds.manager.services.model.*;
 import org.bouncycastle.asn1.DERBMPString;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
@@ -70,6 +71,7 @@ public class CloudAzureService extends AbstractBasics {
     private AzureProfile profile;
     private TokenCredential tokenCredential;
     private AzureResourceManager azureResourceManager;
+    private String defaultSubscriptionId;
 
     private String userName;
 
@@ -311,8 +313,9 @@ public class CloudAzureService extends AbstractBasics {
                     AzSubscription subscription = azProfileDetails.getSubscriptions().get(0);
                     String tenantId = subscription.getTenantId();
                     userName = subscription.getUser().getName();
+                    defaultSubscriptionId = subscription.getId();
                     logger.info("Using tenant id {} and user name {}", tenantId, userName);
-                    profile = new AzureProfile(tenantId, null, AzureEnvironment.AZURE);
+                    profile = new AzureProfile(tenantId, defaultSubscriptionId, AzureEnvironment.AZURE);
                 }
             }
         }
@@ -543,6 +546,53 @@ public class CloudAzureService extends AbstractBasics {
             return Optional.of(AzureKeyVault.from(resource));
         } catch (ResourceNotFoundException e) {
             return Optional.empty();
+        }
+    }
+
+    public List<AzureMariadb> mariadbList() {
+
+        init();
+
+        logger.info("List MariaDB databases");
+        var manager = MariaDBManager.authenticate(tokenCredential, profile);
+        return manager.servers().list().stream()
+                .map(AzureMariadb::from)
+                .sorted((a, b) -> StringTools.safeComparisonNullFirst(a.getName(), b.getName()))
+                .collect(Collectors.toList());
+
+    }
+
+    public Optional<AzureMariadb> mariadbFindById(String mariadbId) {
+
+        init();
+
+        logger.info("Get MariaDB database {}", mariadbId);
+        try {
+            var manager = MariaDBManager.authenticate(tokenCredential, profile);
+            var server = manager.servers().getById(mariadbId);
+            return Optional.of(AzureMariadb.from(server));
+        } catch (ManagementException e) {
+            if (StringTools.safeEquals(e.getValue().getCode(), AzureConstants.RESOURCE_NOT_FOUND)) {
+                return Optional.empty();
+            }
+            throw e;
+        }
+    }
+
+    public Optional<AzureMariadb> mariadbFindByName(String resourceGroupName, String mariadbName) {
+
+        init();
+
+        logger.info("Get MariaDB database {} / {}", resourceGroupName, mariadbName);
+        try {
+            var manager = MariaDBManager.authenticate(tokenCredential, profile);
+            var server = manager.servers().getByResourceGroup(resourceGroupName, mariadbName);
+            return Optional.of(AzureMariadb.from(server));
+        } catch (ManagementException e) {
+            if (StringTools.safeEquals(e.getValue().getCode(), AzureConstants.RESOURCE_NOT_FOUND)) {
+                return Optional.empty();
+            }
+            throw e;
         }
     }
 
