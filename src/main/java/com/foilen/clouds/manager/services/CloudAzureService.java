@@ -565,15 +565,15 @@ public class CloudAzureService extends AbstractBasics {
         AssertTools.assertNotNull(desired.getResourceGroup(), "resource group must be provided");
         AssertTools.assertNotNull(desired.getRegion(), "region must be provided");
 
-        logger.info("Azure Key Vault: {} in resource group {}", desired.getName(), desired.getResourceGroup());
+        logger.info("Check {}", desired);
         var current = keyVaultFindByName(desired.getResourceGroup(), desired.getName()).orElse(null);
         if (current == null) {
             // create
-            logger.info("Azure Key Vault Create: {} in resource group {}", desired.getName(), desired.getResourceGroup());
+            logger.info("Create: {}", desired);
             current = keyVaultCreate(desired.getResourceGroup(), Optional.of(desired.getRegion()), desired.getName());
         } else {
             // Check
-            logger.info("Azure Key Vault exists: {} in resource group {}", desired.getName(), desired.getResourceGroup());
+            logger.info("Exists: {}", desired);
 
             if (!StringTools.safeEquals(current.getRegion(), desired.getRegion())) {
                 throw new ManageUnrecoverableException("Key vault " + desired.getName() + " has wrong region. Desired: " + desired.getRegion() + " ; current: " + current.getRegion());
@@ -615,17 +615,17 @@ public class CloudAzureService extends AbstractBasics {
         AssertTools.assertNotNull(desired.getName(), "name must be provided");
         AssertTools.assertNotNull(desired.getRegion(), "region must be provided");
 
-        logger.info("Azure Resource Group: {} in region {}", desired.getName(), desired.getRegion());
+        logger.info("Check: {}", desired);
         var current = resourceGroupFindByName(desired.getName()).orElse(null);
         if (current == null) {
             // create
-            logger.info("Azure Resource Group Create: {} in region {}", desired.getName(), desired.getRegion());
+            logger.info("Create: {}", desired);
             current = AzureResourceGroup.from(azureResourceManager.resourceGroups().define(desired.getName())
                     .withRegion(desired.getRegion())
                     .create());
         } else {
             // Check
-            logger.info("Azure Resource Group exists: {} in region {}", desired.getName(), desired.getRegion());
+            logger.info("Exists: {}", desired);
 
             if (!StringTools.safeEquals(current.getRegion(), desired.getRegion())) {
                 throw new ManageUnrecoverableException("Resource group " + desired.getName() + " has wrong region. Desired: " + desired.getRegion() + " ; current: " + current.getRegion());
