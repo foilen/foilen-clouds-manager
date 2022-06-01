@@ -13,4 +13,5 @@ public interface HasRegion {
 
     String getRegion();
 
+    void setRegion(String region);
 }

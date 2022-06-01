@@ -20,6 +20,7 @@ import com.azure.resourcemanager.mariadb.MariaDBManager;
 import com.foilen.clouds.manager.ManageUnrecoverableException;
 import com.foilen.clouds.manager.services.model.*;
 import com.foilen.smalltools.tools.*;
+import com.google.common.base.Strings;
 import org.bouncycastle.asn1.DERBMPString;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils;
@@ -530,8 +531,11 @@ public class CloudAzureService extends AbstractBasics {
         try {
             var resource = azureResourceManager.vaults().getByResourceGroup(resourceGroupName, keyVaultName);
             return Optional.of(AzureKeyVault.from(resource));
-        } catch (ResourceNotFoundException e) {
-            return Optional.empty();
+        } catch (ManagementException e) {
+            if (StringTools.safeEquals(e.getValue().getCode(), AzureConstants.RESOURCE_NOT_FOUND)) {
+                return Optional.empty();
+            }
+            throw e;
         }
     }
 
@@ -544,6 +548,51 @@ public class CloudAzureService extends AbstractBasics {
             return Optional.of(AzureKeyVault.from(resource));
         } catch (ResourceNotFoundException e) {
             return Optional.empty();
+        }
+    }
+
+    public AzureKeyVault keyVaultManage(ManageConfiguration config, AzureKeyVault desired) {
+
+        AssertTools.assertNotNull(desired.getName(), "name must be provided");
+
+        if (Strings.isNullOrEmpty(desired.getResourceGroup())) {
+            fillResourceGroup(config, desired);
+        }
+        if (Strings.isNullOrEmpty(desired.getRegion())) {
+            fillRegion(config, desired);
+        }
+
+        AssertTools.assertNotNull(desired.getResourceGroup(), "resource group must be provided");
+        AssertTools.assertNotNull(desired.getRegion(), "region must be provided");
+
+        logger.info("Azure Key Vault: {} in resource group {}", desired.getName(), desired.getResourceGroup());
+        var current = keyVaultFindByName(desired.getResourceGroup(), desired.getName()).orElse(null);
+        if (current == null) {
+            // create
+            logger.info("Azure Key Vault Create: {} in resource group {}", desired.getName(), desired.getResourceGroup());
+            current = keyVaultCreate(desired.getResourceGroup(), Optional.of(desired.getRegion()), desired.getName());
+        } else {
+            // Check
+            logger.info("Azure Key Vault exists: {} in resource group {}", desired.getName(), desired.getResourceGroup());
+
+            if (!StringTools.safeEquals(current.getRegion(), desired.getRegion())) {
+                throw new ManageUnrecoverableException("Key vault " + desired.getName() + " has wrong region. Desired: " + desired.getRegion() + " ; current: " + current.getRegion());
+            }
+        }
+
+        return current;
+
+    }
+
+    private void fillRegion(ManageConfiguration config, HasRegion hasRegion) {
+        if (config.getAzureResourceGroups().size() == 1) {
+            hasRegion.setRegion(config.getAzureResourceGroups().get(0).getRegion());
+        }
+    }
+
+    private void fillResourceGroup(ManageConfiguration config, HasResourceGroup hasResourceGroup) {
+        if (config.getAzureResourceGroups().size() == 1) {
+            hasResourceGroup.setResourceGroup(config.getAzureResourceGroups().get(0).getName());
         }
     }
 

@@ -28,8 +28,11 @@ public class ManageService extends AbstractBasics {
     }
 
     public void manage(ManageConfiguration config) {
-        config.getAzureResourceGroups().forEach(it->{
+        config.getAzureResourceGroups().forEach(it -> {
             cloudAzureService.resourceGroupManage(it);
+        });
+        config.getAzureKeyVaults().forEach(it -> {
+            cloudAzureService.keyVaultManage(config, it);
         });
     }
 }

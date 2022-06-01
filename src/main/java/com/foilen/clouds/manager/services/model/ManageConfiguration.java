@@ -16,7 +16,8 @@ import java.util.List;
 
 public class ManageConfiguration {
 
- private List<AzureResourceGroup> azureResourceGroups = new ArrayList<>();
+    private List<AzureResourceGroup> azureResourceGroups = new ArrayList<>();
+    private List<AzureKeyVault> azureKeyVaults = new ArrayList<>();
 
     public List<AzureResourceGroup> getAzureResourceGroups() {
         return azureResourceGroups;
@@ -24,5 +25,13 @@ public class ManageConfiguration {
 
     public void setAzureResourceGroups(List<AzureResourceGroup> azureResourceGroups) {
         this.azureResourceGroups = azureResourceGroups;
+    }
+
+    public List<AzureKeyVault> getAzureKeyVaults() {
+        return azureKeyVaults;
+    }
+
+    public void setAzureKeyVaults(List<AzureKeyVault> azureKeyVaults) {
+        this.azureKeyVaults = azureKeyVaults;
     }
 }
