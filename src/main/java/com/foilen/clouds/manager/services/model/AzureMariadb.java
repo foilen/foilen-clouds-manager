@@ -11,7 +11,7 @@ package com.foilen.clouds.manager.services.model;
 
 import com.azure.resourcemanager.mariadb.models.Server;
 
-public class AzureMariadb extends CommonResource implements Mariadb, AzureResourceGroup {
+public class AzureMariadb extends CommonResource implements Mariadb, HasResourceGroup {
 
     public static AzureMariadb from(Server server) {
         var item = new AzureMariadb();

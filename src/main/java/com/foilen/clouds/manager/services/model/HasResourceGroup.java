@@ -9,8 +9,8 @@
  */
 package com.foilen.clouds.manager.services.model;
 
-public interface NameInfo {
+public interface HasResourceGroup {
 
-    String getName();
+    String getResourceGroup();
 
 }

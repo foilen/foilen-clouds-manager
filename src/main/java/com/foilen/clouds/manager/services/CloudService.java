@@ -18,7 +18,7 @@ import com.foilen.clouds.manager.CliException;
 import com.foilen.clouds.manager.commands.model.RawDnsEntry;
 import com.foilen.clouds.manager.services.model.AzureDnsZone;
 import com.foilen.clouds.manager.services.model.AzureKeyVault;
-import com.foilen.clouds.manager.services.model.AzureResourceGroup;
+import com.foilen.clouds.manager.services.model.HasResourceGroup;
 import com.foilen.clouds.manager.services.model.AzureWebApp;
 import com.foilen.clouds.manager.services.model.DnsZone;
 import com.foilen.clouds.manager.services.model.SecretStore;
@@ -33,8 +33,8 @@ public class CloudService extends AbstractBasics {
     private CloudAzureService cloudAzureService;
 
     private void addGroupToListIfNotPresent(List<String> groups, Object item) {
-        if (item != null && item instanceof AzureResourceGroup) {
-            String resourceGroup = ((AzureResourceGroup) item).getResourceGroup();
+        if (item != null && item instanceof HasResourceGroup) {
+            String resourceGroup = ((HasResourceGroup) item).getResourceGroup();
             if (resourceGroup != null) {
                 if (!groups.contains(resourceGroup)) {
                     groups.add(resourceGroup);

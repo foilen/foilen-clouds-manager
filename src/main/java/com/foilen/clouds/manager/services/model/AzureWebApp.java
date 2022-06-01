@@ -11,7 +11,7 @@ package com.foilen.clouds.manager.services.model;
 
 import com.azure.resourcemanager.appservice.models.WebAppBasic;
 
-public class AzureWebApp extends CommonResource implements WebApp, AzureResourceGroup {
+public class AzureWebApp extends CommonResource implements WebApp, HasResourceGroup {
 
     public static WebApp from(WebAppBasic webApp) {
         AzureWebApp azureWebApp = new AzureWebApp();

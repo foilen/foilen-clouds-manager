@@ -14,11 +14,11 @@ import java.util.List;
 
 import org.springframework.stereotype.Component;
 
-import com.foilen.clouds.manager.services.model.AzureResourceGroup;
-import com.foilen.clouds.manager.services.model.CloudProviderInfo;
-import com.foilen.clouds.manager.services.model.IdInfo;
-import com.foilen.clouds.manager.services.model.NameInfo;
-import com.foilen.clouds.manager.services.model.RegionInfo;
+import com.foilen.clouds.manager.services.model.HasResourceGroup;
+import com.foilen.clouds.manager.services.model.HasCloudProvider;
+import com.foilen.clouds.manager.services.model.HasId;
+import com.foilen.clouds.manager.services.model.HasName;
+import com.foilen.clouds.manager.services.model.HasRegion;
 import com.foilen.smalltools.tools.AbstractBasics;
 import com.google.common.base.Joiner;
 
@@ -38,20 +38,20 @@ public class ConsoleDisplayService extends AbstractBasics implements DisplayServ
 
         List<String> details = new ArrayList<>();
 
-        if (resource instanceof CloudProviderInfo) {
-            details.add(((CloudProviderInfo) resource).getProvider().toString());
+        if (resource instanceof HasCloudProvider) {
+            details.add(((HasCloudProvider) resource).getProvider().toString());
         }
-        if (resource instanceof NameInfo) {
-            details.add(((NameInfo) resource).getName());
+        if (resource instanceof HasName) {
+            details.add(((HasName) resource).getName());
         }
-        if (resource instanceof RegionInfo) {
-            details.add("(" + ((RegionInfo) resource).getRegion() + ")");
+        if (resource instanceof HasRegion) {
+            details.add("(" + ((HasRegion) resource).getRegion() + ")");
         }
-        if (resource instanceof AzureResourceGroup) {
-            details.add("[" + ((AzureResourceGroup) resource).getResourceGroup() + "]");
+        if (resource instanceof HasResourceGroup) {
+            details.add("[" + ((HasResourceGroup) resource).getResourceGroup() + "]");
         }
-        if (resource instanceof IdInfo) {
-            details.add(((IdInfo) resource).getId());
+        if (resource instanceof HasId) {
+            details.add(((HasId) resource).getId());
         }
 
         details.removeIf(it -> it == null);

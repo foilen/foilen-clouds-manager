@@ -9,8 +9,51 @@
  */
 package com.foilen.clouds.manager.services.model;
 
-public interface AzureResourceGroup {
+import com.azure.resourcemanager.resources.models.ResourceGroup;
 
-    String getResourceGroup();
+public class AzureResourceGroup extends CommonResource implements DnsZone, HasResourceGroup {
+
+    public static AzureResourceGroup from(ResourceGroup resourceGroup) {
+        var item = new AzureResourceGroup();
+        item.setId(resourceGroup.id());
+        item.setName(resourceGroup.name());
+        item.setRegion(resourceGroup.regionName());
+        return item;
+    }
+
+    private String resourceGroup;
+    private String region;
+    private String name;
+
+    public AzureResourceGroup() {
+        super(CloudProvider.AZURE);
+    }
+
+    @Override
+    public String getName() {
+        return name;
+    }
+
+    @Override
+    public String getRegion() {
+        return region;
+    }
+
+    @Override
+    public String getResourceGroup() {
+        return resourceGroup;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public void setRegion(String region) {
+        this.region = region;
+    }
+
+    public void setResourceGroup(String resourceGroup) {
+        this.resourceGroup = resourceGroup;
+    }
 
 }

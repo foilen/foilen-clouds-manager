@@ -9,8 +9,8 @@
  */
 package com.foilen.clouds.manager.services.model;
 
-public interface IdInfo {
+public interface HasRegion {
 
-    String getId();
+    String getRegion();
 
 }

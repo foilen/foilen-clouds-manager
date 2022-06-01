@@ -9,6 +9,8 @@
  */
 package com.foilen.clouds.manager.services.model;
 
-public interface SecretStore extends HasCloudProvider, HasId, HasName {
+public interface HasCloudProvider {
+
+    CloudProvider getProvider();
 
 }

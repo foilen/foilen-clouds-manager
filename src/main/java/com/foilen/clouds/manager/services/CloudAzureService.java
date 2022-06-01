@@ -17,7 +17,9 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import com.azure.resourcemanager.mariadb.MariaDBManager;
+import com.foilen.clouds.manager.ManageUnrecoverableException;
 import com.foilen.clouds.manager.services.model.*;
+import com.foilen.smalltools.tools.*;
 import org.bouncycastle.asn1.DERBMPString;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils;
@@ -54,10 +56,6 @@ import com.foilen.clouds.manager.services.model.json.AzSubscription;
 import com.foilen.smalltools.JavaEnvironmentValues;
 import com.foilen.smalltools.crypt.bouncycastle.cert.RSACertificate;
 import com.foilen.smalltools.crypt.bouncycastle.cert.RSATools;
-import com.foilen.smalltools.tools.AbstractBasics;
-import com.foilen.smalltools.tools.FileTools;
-import com.foilen.smalltools.tools.JsonTools;
-import com.foilen.smalltools.tools.StringTools;
 
 @Component
 public class CloudAzureService extends AbstractBasics {
@@ -547,6 +545,46 @@ public class CloudAzureService extends AbstractBasics {
         } catch (ResourceNotFoundException e) {
             return Optional.empty();
         }
+    }
+
+    public Optional<AzureResourceGroup> resourceGroupFindByName(String resourceGroupName) {
+
+        init();
+
+        try {
+            var resource = azureResourceManager.resourceGroups().getByName(resourceGroupName);
+            return Optional.of(AzureResourceGroup.from(resource));
+        } catch (ManagementException e) {
+            if (StringTools.safeEquals(e.getValue().getCode(), AzureConstants.RESOURCE_GROUP_NOT_FOUND)) {
+                return Optional.empty();
+            }
+            throw e;
+        }
+    }
+
+    public AzureResourceGroup resourceGroupManage(AzureResourceGroup desired) {
+        AssertTools.assertNotNull(desired.getName(), "name must be provided");
+        AssertTools.assertNotNull(desired.getRegion(), "region must be provided");
+
+        logger.info("Azure Resource Group: {} in region {}", desired.getName(), desired.getRegion());
+        var current = resourceGroupFindByName(desired.getName()).orElse(null);
+        if (current == null) {
+            // create
+            logger.info("Azure Resource Group Create: {} in region {}", desired.getName(), desired.getRegion());
+            current = AzureResourceGroup.from(azureResourceManager.resourceGroups().define(desired.getName())
+                    .withRegion(desired.getRegion())
+                    .create());
+        } else {
+            // Check
+            logger.info("Azure Resource Group exists: {} in region {}", desired.getName(), desired.getRegion());
+
+            if (!StringTools.safeEquals(current.getRegion(), desired.getRegion())) {
+                throw new ManageUnrecoverableException("Resource group " + desired.getName() + " has wrong region. Desired: " + desired.getRegion() + " ; current: " + current.getRegion());
+            }
+        }
+
+        return current;
+
     }
 
     public List<AzureMariadb> mariadbList() {

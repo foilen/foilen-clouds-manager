@@ -11,8 +11,9 @@ package com.foilen.clouds.manager.services.model;
 
 public class AzureConstants {
 
-    public static final String ROLE_ASSIGNMENT_EXISTS = "RoleAssignmentExists";
+    public static final String RESOURCE_GROUP_NOT_FOUND = "ResourceGroupNotFound";
     public static final String RESOURCE_NOT_FOUND = "ResourceNotFound";
+    public static final String ROLE_ASSIGNMENT_EXISTS = "RoleAssignmentExists";
     public static final String SECRET_NOT_FOUND = "SecretNotFound";
 
 }

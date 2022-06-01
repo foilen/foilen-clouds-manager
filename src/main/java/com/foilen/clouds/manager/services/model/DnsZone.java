@@ -9,6 +9,6 @@
  */
 package com.foilen.clouds.manager.services.model;
 
-public interface DnsZone extends CloudProviderInfo, IdInfo, NameInfo, RegionInfo {
+public interface DnsZone extends HasCloudProvider, HasId, HasName, HasRegion {
 
 }

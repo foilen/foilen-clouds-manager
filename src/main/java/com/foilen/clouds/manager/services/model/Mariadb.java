@@ -9,6 +9,6 @@
  */
 package com.foilen.clouds.manager.services.model;
 
-public interface Mariadb extends CloudProviderInfo, IdInfo, NameInfo, RegionInfo {
+public interface Mariadb extends HasCloudProvider, HasId, HasName, HasRegion {
 
 }

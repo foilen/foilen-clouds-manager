@@ -9,15 +9,15 @@
  */
 package com.foilen.clouds.manager.services.model;
 
-public class AzureDnsZone extends CommonResource implements DnsZone, AzureResourceGroup {
+public class AzureDnsZone extends CommonResource implements DnsZone, HasResourceGroup {
 
     public static AzureDnsZone from(com.azure.resourcemanager.dns.models.DnsZone dnsZone) {
-        AzureDnsZone azureDnsZone = new AzureDnsZone();
-        azureDnsZone.setId(dnsZone.id());
-        azureDnsZone.setName(dnsZone.name());
-        azureDnsZone.setResourceGroup(dnsZone.resourceGroupName());
-        azureDnsZone.setRegion(dnsZone.regionName());
-        return azureDnsZone;
+        var item = new AzureDnsZone();
+        item.setId(dnsZone.id());
+        item.setName(dnsZone.name());
+        item.setResourceGroup(dnsZone.resourceGroupName());
+        item.setRegion(dnsZone.regionName());
+        return item;
     }
 
     private String resourceGroup;

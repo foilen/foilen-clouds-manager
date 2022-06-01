@@ -11,7 +11,7 @@ package com.foilen.clouds.manager.services.model;
 
 import com.foilen.smalltools.tools.AbstractBasics;
 
-public abstract class CommonResource extends AbstractBasics implements CloudProviderInfo {
+public abstract class CommonResource extends AbstractBasics implements HasCloudProvider {
 
     private final CloudProvider provider;
 

@@ -13,15 +13,15 @@ import java.util.Objects;
 
 import com.azure.resourcemanager.keyvault.models.Vault;
 
-public class AzureKeyVault extends CommonResource implements SecretStore, AzureResourceGroup, RegionInfo {
+public class AzureKeyVault extends CommonResource implements SecretStore, HasResourceGroup, HasRegion {
 
     public static AzureKeyVault from(Vault vault) {
-        AzureKeyVault azureKeyVault = new AzureKeyVault();
-        azureKeyVault.setId(vault.id());
-        azureKeyVault.setName(vault.name());
-        azureKeyVault.setResourceGroup(vault.resourceGroupName());
-        azureKeyVault.setRegion(vault.regionName());
-        return azureKeyVault;
+        var item = new AzureKeyVault();
+        item.setId(vault.id());
+        item.setName(vault.name());
+        item.setResourceGroup(vault.resourceGroupName());
+        item.setRegion(vault.regionName());
+        return item;
     }
 
     private String name;

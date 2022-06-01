@@ -9,6 +9,6 @@
  */
 package com.foilen.clouds.manager.services.model;
 
-public interface WebApp extends CloudProviderInfo, IdInfo, NameInfo, RegionInfo {
+public interface WebApp extends HasCloudProvider, HasId, HasName, HasRegion {
 
 }

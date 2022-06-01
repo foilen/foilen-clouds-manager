@@ -9,8 +9,8 @@
  */
 package com.foilen.clouds.manager.services.model;
 
-public interface CloudProviderInfo {
+public interface HasId {
 
-    CloudProvider getProvider();
+    String getId();
 
 }
