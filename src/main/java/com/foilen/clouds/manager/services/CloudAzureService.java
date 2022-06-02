@@ -9,16 +9,34 @@
  */
 package com.foilen.clouds.manager.services;
 
-import java.io.File;
-import java.io.IOException;
-import java.security.PrivateKey;
-import java.security.PublicKey;
-import java.util.*;
-import java.util.stream.Collectors;
-
+import com.azure.core.credential.TokenCredential;
+import com.azure.core.exception.ResourceNotFoundException;
+import com.azure.core.http.policy.HttpLogDetailLevel;
+import com.azure.core.http.rest.PagedIterable;
+import com.azure.core.management.AzureEnvironment;
+import com.azure.core.management.exception.ManagementException;
+import com.azure.core.management.profile.AzureProfile;
+import com.azure.identity.DefaultAzureCredentialBuilder;
+import com.azure.resourcemanager.AzureResourceManager;
+import com.azure.resourcemanager.appservice.models.OperatingSystem;
+import com.azure.resourcemanager.appservice.models.PricingTier;
+import com.azure.resourcemanager.authorization.models.ActiveDirectoryUser;
+import com.azure.resourcemanager.authorization.models.BuiltInRole;
+import com.azure.resourcemanager.dns.fluent.models.RecordSetInner;
+import com.azure.resourcemanager.dns.models.CnameRecord;
+import com.azure.resourcemanager.dns.models.DnsZone;
+import com.azure.resourcemanager.keyvault.models.Secret;
+import com.azure.resourcemanager.keyvault.models.Vault;
 import com.azure.resourcemanager.mariadb.MariaDBManager;
+import com.foilen.clouds.manager.CliException;
 import com.foilen.clouds.manager.ManageUnrecoverableException;
+import com.foilen.clouds.manager.commands.model.RawDnsEntry;
 import com.foilen.clouds.manager.services.model.*;
+import com.foilen.clouds.manager.services.model.json.AzProfileDetails;
+import com.foilen.clouds.manager.services.model.json.AzSubscription;
+import com.foilen.smalltools.JavaEnvironmentValues;
+import com.foilen.smalltools.crypt.bouncycastle.cert.RSACertificate;
+import com.foilen.smalltools.crypt.bouncycastle.cert.RSATools;
 import com.foilen.smalltools.tools.*;
 import com.google.common.base.Strings;
 import org.bouncycastle.asn1.DERBMPString;
@@ -34,45 +52,112 @@ import org.bouncycastle.pkcs.bc.BcPKCS12PBEOutputEncryptorBuilder;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS12SafeBagBuilder;
 import org.springframework.stereotype.Component;
 
-import com.azure.core.credential.TokenCredential;
-import com.azure.core.exception.ResourceNotFoundException;
-import com.azure.core.http.policy.HttpLogDetailLevel;
-import com.azure.core.http.rest.PagedIterable;
-import com.azure.core.management.AzureEnvironment;
-import com.azure.core.management.exception.ManagementException;
-import com.azure.core.management.profile.AzureProfile;
-import com.azure.identity.DefaultAzureCredentialBuilder;
-import com.azure.resourcemanager.AzureResourceManager;
-import com.azure.resourcemanager.authorization.models.ActiveDirectoryUser;
-import com.azure.resourcemanager.authorization.models.BuiltInRole;
-import com.azure.resourcemanager.dns.fluent.models.RecordSetInner;
-import com.azure.resourcemanager.dns.models.CnameRecord;
-import com.azure.resourcemanager.dns.models.DnsZone;
-import com.azure.resourcemanager.keyvault.models.Secret;
-import com.azure.resourcemanager.keyvault.models.Vault;
-import com.foilen.clouds.manager.CliException;
-import com.foilen.clouds.manager.commands.model.RawDnsEntry;
-import com.foilen.clouds.manager.services.model.json.AzProfileDetails;
-import com.foilen.clouds.manager.services.model.json.AzSubscription;
-import com.foilen.smalltools.JavaEnvironmentValues;
-import com.foilen.smalltools.crypt.bouncycastle.cert.RSACertificate;
-import com.foilen.smalltools.crypt.bouncycastle.cert.RSATools;
+import java.io.File;
+import java.io.IOException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Component
 public class CloudAzureService extends AbstractBasics {
 
     private static final int ITERATION_COUNT = 2048;
+    private AzureProfile profile;
+    private TokenCredential tokenCredential;
+    private AzureResourceManager azureResourceManager;
+    private String defaultSubscriptionId;
+    private String userName;
 
     protected static AzProfileDetails getAzureProfile(String azureProfileFile) {
         return JsonTools.readFromFile(azureProfileFile, AzProfileDetails.class);
     }
 
-    private AzureProfile profile;
-    private TokenCredential tokenCredential;
-    private AzureResourceManager azureResourceManager;
-    private String defaultSubscriptionId;
+    public List<AzureApplicationServicePlan> applicationServicePlansFindAll() {
 
-    private String userName;
+        init();
+
+        return azureResourceManager.appServicePlans().list().stream()
+                .map(AzureApplicationServicePlan::from)
+                .collect(Collectors.toList());
+
+    }
+
+    public Optional<AzureApplicationServicePlan> applicationServicePlanFindByName(String resourceGroupName, String applicationServicePlanName) {
+
+        init();
+
+        logger.info("Get Application farm {} / {}", resourceGroupName, applicationServicePlanName);
+        try {
+            var appServicePlan = azureResourceManager.appServicePlans().getByResourceGroup(resourceGroupName, applicationServicePlanName);
+            return Optional.of(AzureApplicationServicePlan.from(appServicePlan));
+        } catch (ManagementException e) {
+            if (StringTools.safeEquals(e.getValue().getCode(), AzureConstants.RESOURCE_NOT_FOUND)) {
+                return Optional.empty();
+            }
+            throw e;
+        }
+
+    }
+
+    public AzureApplicationServicePlan applicationServicePlanManage(ManageConfiguration config, AzureApplicationServicePlan desired) {
+
+        AssertTools.assertNotNull(desired.getName(), "name must be provided");
+
+        if (Strings.isNullOrEmpty(desired.getResourceGroup())) {
+            fillResourceGroup(config, desired);
+        }
+        if (Strings.isNullOrEmpty(desired.getRegion())) {
+            fillRegion(config, desired);
+        }
+
+        AssertTools.assertNotNull(desired.getResourceGroup(), "resource group must be provided");
+        AssertTools.assertNotNull(desired.getRegion(), "region must be provided");
+
+        var pricingTier = PricingTier.getAll().stream()
+                .filter(it -> StringTools.safeEquals(it.toSkuDescription().size(), desired.getPricingTierSize()))
+                .findFirst().orElse(PricingTier.FREE_F1);
+        var operatingSystem = OperatingSystem.fromString(desired.getOperatingSystem());
+        if (operatingSystem == null) {
+            operatingSystem = OperatingSystem.LINUX;
+        }
+        desired.setOperatingSystem(operatingSystem.name());
+        if (desired.getCapacity() == null) {
+            desired.setCapacity(1);
+        }
+        if (desired.getPerSiteScaling() == null) {
+            desired.setPerSiteScaling(true);
+        }
+
+        logger.info("Check {}", desired);
+        var current = applicationServicePlanFindByName(desired.getResourceGroup(), desired.getName()).orElse(null);
+        if (current == null) {
+            // create
+            logger.info("Create: {}", desired);
+            current = AzureApplicationServicePlan.from(azureResourceManager.appServicePlans().define(desired.getName())
+                    .withRegion(desired.getRegion())
+                    .withExistingResourceGroup(desired.getResourceGroup())
+                    .withPricingTier(pricingTier)
+                    .withOperatingSystem(operatingSystem)
+                    .withCapacity(desired.getCapacity())
+                    .withPerSiteScaling(desired.getPerSiteScaling())
+                    .create());
+        } else {
+            // Check
+            logger.info("Exists: {}", desired);
+
+            var differences = desired.differences(current);
+            if (!differences.isEmpty()) {
+                for (String difference : differences) {
+                    logger.error(difference);
+                }
+                throw new ManageUnrecoverableException();
+            }
+        }
+
+        return current;
+
+    }
 
     public Optional<com.foilen.clouds.manager.services.model.DnsZone> dnsFindById(String azureDnsZoneId) {
 
@@ -524,6 +609,16 @@ public class CloudAzureService extends AbstractBasics {
 
     }
 
+    public List<AzureKeyVault> keyVaultFindAll() {
+
+        init();
+
+        return azureResourceManager.resourceGroups().list().stream()
+                .flatMap(resourceGroup -> azureResourceManager.vaults().listByResourceGroup(resourceGroup.name()).stream())
+                .map(AzureKeyVault::from)
+                .collect(Collectors.toList());
+    }
+
     public Optional<AzureKeyVault> keyVaultFindByName(String resourceGroupName, String keyVaultName) {
 
         init();
@@ -575,8 +670,12 @@ public class CloudAzureService extends AbstractBasics {
             // Check
             logger.info("Exists: {}", desired);
 
-            if (!StringTools.safeEquals(current.getRegion(), desired.getRegion())) {
-                throw new ManageUnrecoverableException("Key vault " + desired.getName() + " has wrong region. Desired: " + desired.getRegion() + " ; current: " + current.getRegion());
+            var differences = desired.differences(current);
+            if (!differences.isEmpty()) {
+                for (String difference : differences) {
+                    logger.error(difference);
+                }
+                throw new ManageUnrecoverableException();
             }
         }
 
@@ -594,6 +693,15 @@ public class CloudAzureService extends AbstractBasics {
         if (config.getAzureResourceGroups().size() == 1) {
             hasResourceGroup.setResourceGroup(config.getAzureResourceGroups().get(0).getName());
         }
+    }
+
+    public List<AzureResourceGroup> resourceGroupFindAll() {
+
+        init();
+
+        return azureResourceManager.resourceGroups().list().stream()
+                .map(AzureResourceGroup::from)
+                .collect(Collectors.toList());
     }
 
     public Optional<AzureResourceGroup> resourceGroupFindByName(String resourceGroupName) {
@@ -627,8 +735,12 @@ public class CloudAzureService extends AbstractBasics {
             // Check
             logger.info("Exists: {}", desired);
 
-            if (!StringTools.safeEquals(current.getRegion(), desired.getRegion())) {
-                throw new ManageUnrecoverableException("Resource group " + desired.getName() + " has wrong region. Desired: " + desired.getRegion() + " ; current: " + current.getRegion());
+            var differences = desired.differences(current);
+            if (!differences.isEmpty()) {
+                for (String difference : differences) {
+                    logger.error(difference);
+                }
+                throw new ManageUnrecoverableException();
             }
         }
 

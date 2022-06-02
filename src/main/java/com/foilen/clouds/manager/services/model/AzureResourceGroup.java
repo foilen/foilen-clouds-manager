@@ -11,13 +11,16 @@ package com.foilen.clouds.manager.services.model;
 
 import com.azure.resourcemanager.resources.models.ResourceGroup;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class AzureResourceGroup extends CommonResource implements DnsZone {
 
     public static AzureResourceGroup from(ResourceGroup resourceGroup) {
         var item = new AzureResourceGroup();
         item.setId(resourceGroup.id());
-        item.setName(resourceGroup.name());
-        item.setRegion(resourceGroup.regionName());
+        item.name = resourceGroup.name();
+        item.region = resourceGroup.region().name();
         return item;
     }
 
@@ -26,6 +29,12 @@ public class AzureResourceGroup extends CommonResource implements DnsZone {
 
     public AzureResourceGroup() {
         super(CloudProvider.AZURE);
+    }
+
+    public List<String> differences(AzureResourceGroup current) {
+        var differences = new ArrayList<String>();
+        different(differences,"Resource Group", name, "region", region, current.region);
+        return differences;
     }
 
     @Override

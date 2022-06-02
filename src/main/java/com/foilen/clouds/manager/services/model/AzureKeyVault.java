@@ -9,6 +9,8 @@
  */
 package com.foilen.clouds.manager.services.model;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 import com.azure.resourcemanager.keyvault.models.Vault;
@@ -18,9 +20,9 @@ public class AzureKeyVault extends CommonResource implements SecretStore, HasRes
     public static AzureKeyVault from(Vault vault) {
         var item = new AzureKeyVault();
         item.setId(vault.id());
-        item.setName(vault.name());
-        item.setResourceGroup(vault.resourceGroupName());
-        item.setRegion(vault.regionName());
+        item.name = vault.name();
+        item.resourceGroup = vault.resourceGroupName();
+        item.region = vault.region().name();
         return item;
     }
 
@@ -30,6 +32,13 @@ public class AzureKeyVault extends CommonResource implements SecretStore, HasRes
 
     public AzureKeyVault() {
         super(CloudProvider.AZURE);
+    }
+
+    public List<String> differences(AzureKeyVault current) {
+        var differences = new ArrayList<String>();
+        different(differences,"Key Vault", name, "resourceGroup", resourceGroup, current.resourceGroup);
+        different(differences,"Key Vault", name, "region", region, current.region);
+        return differences;
     }
 
     @Override

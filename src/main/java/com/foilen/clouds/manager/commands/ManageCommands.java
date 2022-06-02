@@ -26,9 +26,14 @@ public class ManageCommands extends AbstractBasics {
     public void manageResources(
             @ShellOption String file
     ) {
-
         manageService.manage(file);
+    }
 
+    @ShellMethod("Export resources in file")
+    public void manageResourcesExport(
+            @ShellOption String file
+    ) {
+        manageService.export(file);
     }
 
 }

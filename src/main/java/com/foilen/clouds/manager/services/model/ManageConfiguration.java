@@ -18,6 +18,7 @@ public class ManageConfiguration {
 
     private List<AzureResourceGroup> azureResourceGroups = new ArrayList<>();
     private List<AzureKeyVault> azureKeyVaults = new ArrayList<>();
+    private List<AzureApplicationServicePlan> azureApplicationServicePlans = new ArrayList<>();
 
     public List<AzureResourceGroup> getAzureResourceGroups() {
         return azureResourceGroups;
@@ -33,5 +34,13 @@ public class ManageConfiguration {
 
     public void setAzureKeyVaults(List<AzureKeyVault> azureKeyVaults) {
         this.azureKeyVaults = azureKeyVaults;
+    }
+
+    public List<AzureApplicationServicePlan> getAzureApplicationServicePlans() {
+        return azureApplicationServicePlans;
+    }
+
+    public void setAzureApplicationServicePlans(List<AzureApplicationServicePlan> azureApplicationServicePlans) {
+        this.azureApplicationServicePlans = azureApplicationServicePlans;
     }
 }
