@@ -28,6 +28,7 @@ import com.azure.resourcemanager.dns.models.DnsZone;
 import com.azure.resourcemanager.keyvault.models.Secret;
 import com.azure.resourcemanager.keyvault.models.Vault;
 import com.azure.resourcemanager.mariadb.MariaDBManager;
+import com.azure.resourcemanager.mariadb.models.*;
 import com.foilen.clouds.manager.CliException;
 import com.foilen.clouds.manager.ManageUnrecoverableException;
 import com.foilen.clouds.manager.commands.model.RawDnsEntry;
@@ -529,86 +530,6 @@ public class CloudAzureService extends AbstractBasics {
         }
     }
 
-    private String sanitizedSecretName(String secretName) {
-        return secretName.replace('.', '-');
-    }
-
-    private String trimDot(String name) {
-        while (name.endsWith(".")) {
-            name = name.substring(0, name.length() - 1);
-        }
-        return name;
-    }
-
-    public void webAppServicePushCertificate(String hostname, AzureWebApp azureWebApp, RSACertificate caRsaCertificate, RSACertificate hostRsaCertificate, String pfxPassword) {
-
-        init();
-
-        logger.info("Generate PFX certificate");
-        byte[] pfx;
-        try {
-            JcaX509ExtensionUtils jcaX509ExtensionUtils = new JcaX509ExtensionUtils();
-
-            PublicKey publicKey = RSATools.createPublicKey(hostRsaCertificate.getKeysForSigning());
-            PrivateKey privateKey = RSATools.createPrivateKey(hostRsaCertificate.getKeysForSigning());
-
-            pfx = new PKCS12PfxPduBuilder() //
-                    // Host Cert
-                    .addData(new JcaPKCS12SafeBagBuilder(hostRsaCertificate.getCertificate()) //
-                            .addBagAttribute(PKCSObjectIdentifiers.pkcs_9_at_friendlyName, new DERBMPString(hostRsaCertificate.getCommonName())) //
-                            .build() //
-                    )
-                    // CA cert
-                    .addData(new JcaPKCS12SafeBagBuilder(caRsaCertificate.getCertificate()) //
-                            .addBagAttribute(PKCSObjectIdentifiers.pkcs_9_at_friendlyName, new DERBMPString(caRsaCertificate.getCommonName())) //
-                            .build() //
-                    )
-                    // Private Key
-                    .addEncryptedData( //
-                            new BcPKCS12PBEOutputEncryptorBuilder( //
-                                    PKCSObjectIdentifiers.pbeWithSHAAnd40BitRC2_CBC, //
-                                    new CBCBlockCipher(new RC2Engine()) //
-                            ) //
-                                    .setIterationCount(2048) //
-                                    .build(pfxPassword.toCharArray()),
-                            new PKCS12SafeBag[]{ //
-                                    new JcaPKCS12SafeBagBuilder( //
-                                            privateKey, //
-                                            new BcPKCS12PBEOutputEncryptorBuilder( //
-                                                    PKCSObjectIdentifiers.pbeWithSHAAnd3_KeyTripleDES_CBC, //
-                                                    new CBCBlockCipher(new DESedeEngine()) //
-                                            ) //
-                                                    .setIterationCount(2048) //
-                                                    .build(pfxPassword.toCharArray()) //
-                                    ) //
-                                            .addBagAttribute(PKCSObjectIdentifiers.pkcs_9_at_friendlyName, new DERBMPString(hostRsaCertificate.getCommonName())) //
-                                            .addBagAttribute(PKCSObjectIdentifiers.pkcs_9_at_localKeyId, jcaX509ExtensionUtils.createSubjectKeyIdentifier(publicKey)) //
-                                            .build() //
-                            } //
-                    ) //
-                    .build(new BcPKCS12MacCalculatorBuilder().setIterationCount(ITERATION_COUNT), pfxPassword.toCharArray()) //
-                    .getEncoded();
-
-        } catch (Exception e) {
-            throw new CliException("Problem saving to PKCS12", e);
-        }
-
-        logger.info("Bind certificate {} to web app {}", hostRsaCertificate.getThumbprint(), azureWebApp.getId());
-        File pfxFile;
-        try {
-            pfxFile = File.createTempFile("cert", ".pfx");
-            FileTools.writeFile(pfx, pfxFile);
-        } catch (IOException e) {
-            throw new CliException("Problem creating pfx file", e);
-        }
-        azureResourceManager.webApps().getById(azureWebApp.getId()) //
-                .update() //
-                .defineSslBinding().forHostname(hostname).withPfxCertificateToUpload(pfxFile, pfxPassword).withSniBasedSsl().attach() //
-                .apply();
-        pfxFile.delete();
-
-    }
-
     public List<AzureKeyVault> keyVaultFindAll() {
 
         init();
@@ -683,16 +604,102 @@ public class CloudAzureService extends AbstractBasics {
 
     }
 
-    private void fillRegion(ManageConfiguration config, HasRegion hasRegion) {
-        if (config.getAzureResourceGroups().size() == 1) {
-            hasRegion.setRegion(config.getAzureResourceGroups().get(0).getRegion());
+    public List<AzureMariadb> mariadbList() {
+
+        init();
+
+        logger.info("List MariaDB databases");
+        var manager = MariaDBManager.authenticate(tokenCredential, profile);
+        return manager.servers().list().stream()
+                .map(AzureMariadb::from)
+                .sorted((a, b) -> StringTools.safeComparisonNullFirst(a.getName(), b.getName()))
+                .collect(Collectors.toList());
+
+    }
+
+    public Optional<AzureMariadb> mariadbFindById(String mariadbId) {
+
+        init();
+
+        logger.info("Get MariaDB database {}", mariadbId);
+        try {
+            var manager = MariaDBManager.authenticate(tokenCredential, profile);
+            var server = manager.servers().getById(mariadbId);
+            return Optional.of(AzureMariadb.from(server));
+        } catch (ManagementException e) {
+            if (StringTools.safeEquals(e.getValue().getCode(), AzureConstants.RESOURCE_NOT_FOUND)) {
+                return Optional.empty();
+            }
+            throw e;
         }
     }
 
-    private void fillResourceGroup(ManageConfiguration config, HasResourceGroup hasResourceGroup) {
-        if (config.getAzureResourceGroups().size() == 1) {
-            hasResourceGroup.setResourceGroup(config.getAzureResourceGroups().get(0).getName());
+    public Optional<AzureMariadb> mariadbFindByName(String resourceGroupName, String mariadbName) {
+
+        init();
+
+        logger.info("Get MariaDB database {} / {}", resourceGroupName, mariadbName);
+        try {
+            var manager = MariaDBManager.authenticate(tokenCredential, profile);
+            var server = manager.servers().getByResourceGroup(resourceGroupName, mariadbName);
+            return Optional.of(AzureMariadb.from(server));
+        } catch (ManagementException e) {
+            if (StringTools.safeEquals(e.getValue().getCode(), AzureConstants.RESOURCE_NOT_FOUND)) {
+                return Optional.empty();
+            }
+            throw e;
         }
+    }
+
+    public AzureMariadb mariadbManage(ManageConfiguration config, AzureMariadb desired) {
+
+        AssertTools.assertNotNull(desired.getName(), "name must be provided");
+
+        if (Strings.isNullOrEmpty(desired.getResourceGroup())) {
+            fillResourceGroup(config, desired);
+        }
+        if (Strings.isNullOrEmpty(desired.getRegion())) {
+            fillRegion(config, desired);
+        }
+
+        AssertTools.assertNotNull(desired.getResourceGroup(), "resource group must be provided");
+        AssertTools.assertNotNull(desired.getRegion(), "region must be provided");
+
+        logger.info("Check {}", desired);
+        var current = mariadbFindByName(desired.getResourceGroup(), desired.getName()).orElse(null);
+        if (current == null) {
+            // create
+            logger.info("Create: {}", desired);
+            var manager = MariaDBManager.authenticate(tokenCredential, profile);
+            current = AzureMariadb.from(manager.servers().define(desired.getName())
+                    .withRegion(desired.getRegion())
+                    .withExistingResourceGroup(desired.getResourceGroup())
+                    .withProperties(new ServerPropertiesForDefaultCreate()
+                            .withAdministratorLogin(desired.getAdministratorLogin())
+                            .withAdministratorLoginPassword(desired.getAdministratorLoginPassword())
+                            .withSslEnforcement(SslEnforcementEnum.fromString(desired.getSslEnforcement()))
+                            .withMinimalTlsVersion(MinimalTlsVersionEnum.fromString(desired.getMinimalTlsVersion()))
+                            .withStorageProfile(desired.getStorageProfile())
+                            .withPublicNetworkAccess(PublicNetworkAccessEnum.fromString(desired.getPublicNetworkAccess()))
+                            .withVersion(ServerVersion.fromString(desired.getVersion()))
+                    )
+                    .withSku(new Sku().withName(desired.getSkuName()))
+                    .create());
+        } else {
+            // Check
+            logger.info("Exists: {}", desired);
+
+            var differences = desired.differences(current);
+            if (!differences.isEmpty()) {
+                for (String difference : differences) {
+                    logger.error(difference);
+                }
+                throw new ManageUnrecoverableException();
+            }
+        }
+
+        return current;
+
     }
 
     public List<AzureResourceGroup> resourceGroupFindAll() {
@@ -748,53 +755,6 @@ public class CloudAzureService extends AbstractBasics {
 
     }
 
-    public List<AzureMariadb> mariadbList() {
-
-        init();
-
-        logger.info("List MariaDB databases");
-        var manager = MariaDBManager.authenticate(tokenCredential, profile);
-        return manager.servers().list().stream()
-                .map(AzureMariadb::from)
-                .sorted((a, b) -> StringTools.safeComparisonNullFirst(a.getName(), b.getName()))
-                .collect(Collectors.toList());
-
-    }
-
-    public Optional<AzureMariadb> mariadbFindById(String mariadbId) {
-
-        init();
-
-        logger.info("Get MariaDB database {}", mariadbId);
-        try {
-            var manager = MariaDBManager.authenticate(tokenCredential, profile);
-            var server = manager.servers().getById(mariadbId);
-            return Optional.of(AzureMariadb.from(server));
-        } catch (ManagementException e) {
-            if (StringTools.safeEquals(e.getValue().getCode(), AzureConstants.RESOURCE_NOT_FOUND)) {
-                return Optional.empty();
-            }
-            throw e;
-        }
-    }
-
-    public Optional<AzureMariadb> mariadbFindByName(String resourceGroupName, String mariadbName) {
-
-        init();
-
-        logger.info("Get MariaDB database {} / {}", resourceGroupName, mariadbName);
-        try {
-            var manager = MariaDBManager.authenticate(tokenCredential, profile);
-            var server = manager.servers().getByResourceGroup(resourceGroupName, mariadbName);
-            return Optional.of(AzureMariadb.from(server));
-        } catch (ManagementException e) {
-            if (StringTools.safeEquals(e.getValue().getCode(), AzureConstants.RESOURCE_NOT_FOUND)) {
-                return Optional.empty();
-            }
-            throw e;
-        }
-    }
-
     public Optional<WebApp> webappFindById(String azureWebappId) {
 
         init();
@@ -805,6 +765,98 @@ public class CloudAzureService extends AbstractBasics {
         } catch (ResourceNotFoundException e) {
             return Optional.empty();
         }
+    }
+
+    public void webAppServicePushCertificate(String hostname, AzureWebApp azureWebApp, RSACertificate caRsaCertificate, RSACertificate hostRsaCertificate, String pfxPassword) {
+
+        init();
+
+        logger.info("Generate PFX certificate");
+        byte[] pfx;
+        try {
+            JcaX509ExtensionUtils jcaX509ExtensionUtils = new JcaX509ExtensionUtils();
+
+            PublicKey publicKey = RSATools.createPublicKey(hostRsaCertificate.getKeysForSigning());
+            PrivateKey privateKey = RSATools.createPrivateKey(hostRsaCertificate.getKeysForSigning());
+
+            pfx = new PKCS12PfxPduBuilder() //
+                    // Host Cert
+                    .addData(new JcaPKCS12SafeBagBuilder(hostRsaCertificate.getCertificate()) //
+                            .addBagAttribute(PKCSObjectIdentifiers.pkcs_9_at_friendlyName, new DERBMPString(hostRsaCertificate.getCommonName())) //
+                            .build() //
+                    )
+                    // CA cert
+                    .addData(new JcaPKCS12SafeBagBuilder(caRsaCertificate.getCertificate()) //
+                            .addBagAttribute(PKCSObjectIdentifiers.pkcs_9_at_friendlyName, new DERBMPString(caRsaCertificate.getCommonName())) //
+                            .build() //
+                    )
+                    // Private Key
+                    .addEncryptedData( //
+                            new BcPKCS12PBEOutputEncryptorBuilder( //
+                                    PKCSObjectIdentifiers.pbeWithSHAAnd40BitRC2_CBC, //
+                                    new CBCBlockCipher(new RC2Engine()) //
+                            ) //
+                                    .setIterationCount(2048) //
+                                    .build(pfxPassword.toCharArray()),
+                            new PKCS12SafeBag[]{ //
+                                    new JcaPKCS12SafeBagBuilder( //
+                                            privateKey, //
+                                            new BcPKCS12PBEOutputEncryptorBuilder( //
+                                                    PKCSObjectIdentifiers.pbeWithSHAAnd3_KeyTripleDES_CBC, //
+                                                    new CBCBlockCipher(new DESedeEngine()) //
+                                            ) //
+                                                    .setIterationCount(2048) //
+                                                    .build(pfxPassword.toCharArray()) //
+                                    ) //
+                                            .addBagAttribute(PKCSObjectIdentifiers.pkcs_9_at_friendlyName, new DERBMPString(hostRsaCertificate.getCommonName())) //
+                                            .addBagAttribute(PKCSObjectIdentifiers.pkcs_9_at_localKeyId, jcaX509ExtensionUtils.createSubjectKeyIdentifier(publicKey)) //
+                                            .build() //
+                            } //
+                    ) //
+                    .build(new BcPKCS12MacCalculatorBuilder().setIterationCount(ITERATION_COUNT), pfxPassword.toCharArray()) //
+                    .getEncoded();
+
+        } catch (Exception e) {
+            throw new CliException("Problem saving to PKCS12", e);
+        }
+
+        logger.info("Bind certificate {} to web app {}", hostRsaCertificate.getThumbprint(), azureWebApp.getId());
+        File pfxFile;
+        try {
+            pfxFile = File.createTempFile("cert", ".pfx");
+            FileTools.writeFile(pfx, pfxFile);
+        } catch (IOException e) {
+            throw new CliException("Problem creating pfx file", e);
+        }
+        azureResourceManager.webApps().getById(azureWebApp.getId()) //
+                .update() //
+                .defineSslBinding().forHostname(hostname).withPfxCertificateToUpload(pfxFile, pfxPassword).withSniBasedSsl().attach() //
+                .apply();
+        pfxFile.delete();
+
+    }
+
+    private void fillRegion(ManageConfiguration config, HasRegion hasRegion) {
+        if (config.getAzureResourceGroups().size() == 1) {
+            hasRegion.setRegion(config.getAzureResourceGroups().get(0).getRegion());
+        }
+    }
+
+    private void fillResourceGroup(ManageConfiguration config, HasResourceGroup hasResourceGroup) {
+        if (config.getAzureResourceGroups().size() == 1) {
+            hasResourceGroup.setResourceGroup(config.getAzureResourceGroups().get(0).getName());
+        }
+    }
+
+    private String sanitizedSecretName(String secretName) {
+        return secretName.replace('.', '-');
+    }
+
+    private String trimDot(String name) {
+        while (name.endsWith(".")) {
+            name = name.substring(0, name.length() - 1);
+        }
+        return name;
     }
 
 }

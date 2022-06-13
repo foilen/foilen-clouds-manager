@@ -40,6 +40,9 @@ public class ManageService extends AbstractBasics {
         config.getAzureApplicationServicePlans().forEach(it -> {
             cloudAzureService.applicationServicePlanManage(config, it);
         });
+        config.getAzureMariadbs().forEach(it -> {
+            cloudAzureService.mariadbManage(config, it);
+        });
     }
 
     public void export(String file) {
@@ -53,6 +56,10 @@ public class ManageService extends AbstractBasics {
 
         logger.info("Getting application service plans");
         config.setAzureApplicationServicePlans(cloudAzureService.applicationServicePlansFindAll());
+
+        logger.info("Getting mariadbs");
+        config.setAzureMariadbs(cloudAzureService.mariadbList());
+
 
         logger.info("Export to {}", file);
         JsonTools.writeToFile(file, cleanup(config));
@@ -71,7 +78,7 @@ public class ManageService extends AbstractBasics {
 
         cloned.forEach((key, value) -> {
             if (value instanceof Map) {
-                cleanup(cloned);
+                cleanup((Map) value);
             }
             if (value instanceof List) {
                 ((List<?>) value).forEach(it -> {
