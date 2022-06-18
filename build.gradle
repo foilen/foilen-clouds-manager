@@ -28,6 +28,7 @@ eclipse {
 dependencies {
   implementation "com.fasterxml.jackson.core:jackson-databind"
   implementation "com.foilen:jl-smalltools:$smalltoolsVersion"
+  implementation "com.foilen:database-tools:$databaseToolsVersion"
   implementation "com.google.guava:guava:$guavaVersion"
   implementation "dnsjava:dnsjava:$dnsJavaVersion"
   implementation "javax.xml.bind:jaxb-api"

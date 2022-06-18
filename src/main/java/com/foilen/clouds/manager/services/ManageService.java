@@ -9,6 +9,7 @@
  */
 package com.foilen.clouds.manager.services;
 
+import com.foilen.clouds.manager.services.model.AzureMariadbManageConfiguration;
 import com.foilen.clouds.manager.services.model.ManageConfiguration;
 import com.foilen.smalltools.tools.AbstractBasics;
 import com.foilen.smalltools.tools.JsonTools;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Component
 public class ManageService extends AbstractBasics {
@@ -58,8 +60,10 @@ public class ManageService extends AbstractBasics {
         config.setAzureApplicationServicePlans(cloudAzureService.applicationServicePlansFindAll());
 
         logger.info("Getting mariadbs");
-        config.setAzureMariadbs(cloudAzureService.mariadbList());
-
+        config.setAzureMariadbs(cloudAzureService.mariadbList().stream()
+                .map(it -> new AzureMariadbManageConfiguration().setResource(it))
+                .collect(Collectors.toList())
+        );
 
         logger.info("Export to {}", file);
         JsonTools.writeToFile(file, cleanup(config));

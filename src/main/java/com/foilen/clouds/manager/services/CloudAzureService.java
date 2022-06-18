@@ -35,6 +35,9 @@ import com.foilen.clouds.manager.commands.model.RawDnsEntry;
 import com.foilen.clouds.manager.services.model.*;
 import com.foilen.clouds.manager.services.model.json.AzProfileDetails;
 import com.foilen.clouds.manager.services.model.json.AzSubscription;
+import com.foilen.databasetools.connection.JdbcUriConfigConnection;
+import com.foilen.databasetools.manage.mariadb.MariadbManageProcess;
+import com.foilen.databasetools.manage.mariadb.MariadbManagerConfig;
 import com.foilen.smalltools.JavaEnvironmentValues;
 import com.foilen.smalltools.crypt.bouncycastle.cert.RSACertificate;
 import com.foilen.smalltools.crypt.bouncycastle.cert.RSATools;
@@ -651,45 +654,48 @@ public class CloudAzureService extends AbstractBasics {
         }
     }
 
-    public AzureMariadb mariadbManage(ManageConfiguration config, AzureMariadb desired) {
+    public AzureMariadb mariadbManage(ManageConfiguration config, AzureMariadbManageConfiguration desired) {
 
-        AssertTools.assertNotNull(desired.getName(), "name must be provided");
+        var desiredResource = desired.getResource();
 
-        if (Strings.isNullOrEmpty(desired.getResourceGroup())) {
-            fillResourceGroup(config, desired);
+        AssertTools.assertNotNull(desiredResource, "resource must be provided");
+        AssertTools.assertNotNull(desiredResource.getName(), "resource.name must be provided");
+
+        if (Strings.isNullOrEmpty(desiredResource.getResourceGroup())) {
+            fillResourceGroup(config, desiredResource);
         }
-        if (Strings.isNullOrEmpty(desired.getRegion())) {
-            fillRegion(config, desired);
+        if (Strings.isNullOrEmpty(desiredResource.getRegion())) {
+            fillRegion(config, desiredResource);
         }
 
-        AssertTools.assertNotNull(desired.getResourceGroup(), "resource group must be provided");
-        AssertTools.assertNotNull(desired.getRegion(), "region must be provided");
+        AssertTools.assertNotNull(desiredResource.getResourceGroup(), "resource.resource group must be provided");
+        AssertTools.assertNotNull(desiredResource.getRegion(), "resource.region must be provided");
 
         logger.info("Check {}", desired);
-        var current = mariadbFindByName(desired.getResourceGroup(), desired.getName()).orElse(null);
-        if (current == null) {
+        var currentResource = mariadbFindByName(desiredResource.getResourceGroup(), desiredResource.getName()).orElse(null);
+        if (currentResource == null) {
             // create
             logger.info("Create: {}", desired);
             var manager = MariaDBManager.authenticate(tokenCredential, profile);
-            current = AzureMariadb.from(manager.servers().define(desired.getName())
-                    .withRegion(desired.getRegion())
-                    .withExistingResourceGroup(desired.getResourceGroup())
+            currentResource = AzureMariadb.from(manager.servers().define(desiredResource.getName())
+                    .withRegion(desiredResource.getRegion())
+                    .withExistingResourceGroup(desiredResource.getResourceGroup())
                     .withProperties(new ServerPropertiesForDefaultCreate()
-                            .withAdministratorLogin(desired.getAdministratorLogin())
-                            .withAdministratorLoginPassword(desired.getAdministratorLoginPassword())
-                            .withSslEnforcement(SslEnforcementEnum.fromString(desired.getSslEnforcement()))
-                            .withMinimalTlsVersion(MinimalTlsVersionEnum.fromString(desired.getMinimalTlsVersion()))
-                            .withStorageProfile(desired.getStorageProfile())
-                            .withPublicNetworkAccess(PublicNetworkAccessEnum.fromString(desired.getPublicNetworkAccess()))
-                            .withVersion(ServerVersion.fromString(desired.getVersion()))
+                            .withAdministratorLogin(desiredResource.getAdministratorLogin())
+                            .withAdministratorLoginPassword(desiredResource.getAdministratorLoginPassword())
+                            .withSslEnforcement(SslEnforcementEnum.fromString(desiredResource.getSslEnforcement()))
+                            .withMinimalTlsVersion(MinimalTlsVersionEnum.fromString(desiredResource.getMinimalTlsVersion()))
+                            .withStorageProfile(desiredResource.getStorageProfile())
+                            .withPublicNetworkAccess(PublicNetworkAccessEnum.fromString(desiredResource.getPublicNetworkAccess()))
+                            .withVersion(ServerVersion.fromString(desiredResource.getVersion()))
                     )
-                    .withSku(new Sku().withName(desired.getSkuName()))
+                    .withSku(new Sku().withName(desiredResource.getSkuName()))
                     .create());
         } else {
             // Check
             logger.info("Exists: {}", desired);
 
-            var differences = desired.differences(current);
+            var differences = desiredResource.differences(currentResource);
             if (!differences.isEmpty()) {
                 for (String difference : differences) {
                     logger.error(difference);
@@ -698,7 +704,35 @@ public class CloudAzureService extends AbstractBasics {
             }
         }
 
-        return current;
+        // Apply databases and users if provided
+        if (desired.getConfig() != null) {
+            String name = desiredResource.getName();
+            String administratorLogin = desiredResource.getAdministratorLogin();
+            String administratorLoginPassword = desiredResource.getAdministratorLoginPassword();
+
+            logger.info("Managing databases and users on: {}", currentResource.getId());
+            File manageConfigFile = null;
+            try {
+                manageConfigFile = File.createTempFile("manage", ".json");
+                var jdbcUri = "jdbc:mariadb://" + name + ".mariadb.database.azure.com:3306/mysql?useSSL=true&user=" + administratorLogin + "@" + name + "&password=" + administratorLoginPassword;
+
+                MariadbManagerConfig mariadbManagerConfig = desired.getConfig();
+                mariadbManagerConfig.setConnection(new JdbcUriConfigConnection().setJdbcUri(jdbcUri));
+                JsonTools.writeToFile(manageConfigFile, mariadbManagerConfig);
+
+                MariadbManageProcess mariadbManageProcess = new MariadbManageProcess(manageConfigFile.getAbsolutePath(), false);
+                mariadbManageProcess.run();
+
+            } catch (Exception e) {
+                throw new ManageUnrecoverableException("Problem while managing databases and users", e);
+            } finally {
+                if (manageConfigFile != null) {
+                    manageConfigFile.delete();
+                }
+            }
+        }
+
+        return currentResource;
 
     }
 
