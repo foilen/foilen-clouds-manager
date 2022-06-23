@@ -9,6 +9,7 @@
  */
 package com.foilen.clouds.manager.services;
 
+import com.foilen.clouds.manager.services.model.AzureDnsZoneManageConfiguration;
 import com.foilen.clouds.manager.services.model.AzureMariadbManageConfiguration;
 import com.foilen.clouds.manager.services.model.ManageConfiguration;
 import com.foilen.smalltools.tools.AbstractBasics;
@@ -45,6 +46,9 @@ public class ManageService extends AbstractBasics {
         config.getAzureMariadbs().forEach(it -> {
             cloudAzureService.mariadbManage(config, it);
         });
+        config.getAzureDnsZones().forEach(it -> {
+            cloudAzureService.dnsZoneManage(config, it);
+        });
     }
 
     public void export(String file) {
@@ -62,6 +66,12 @@ public class ManageService extends AbstractBasics {
         logger.info("Getting mariadbs");
         config.setAzureMariadbs(cloudAzureService.mariadbList().stream()
                 .map(it -> new AzureMariadbManageConfiguration().setResource(it))
+                .collect(Collectors.toList())
+        );
+
+        logger.info("Getting Dns Zones");
+        config.setAzureDnsZones(cloudAzureService.dnsZoneList().stream()
+                .map(it -> new AzureDnsZoneManageConfiguration().setResource(it))
                 .collect(Collectors.toList())
         );
 

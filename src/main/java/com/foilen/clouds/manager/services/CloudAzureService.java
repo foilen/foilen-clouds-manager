@@ -190,6 +190,48 @@ public class CloudAzureService extends AbstractBasics {
 
     }
 
+    public AzureDnsZone dnsZoneManage(ManageConfiguration config, AzureDnsZoneManageConfiguration desired) {
+
+        var desiredResource = desired.getResource();
+
+        AssertTools.assertNotNull(desiredResource, "resource must be provided");
+        AssertTools.assertNotNull(desiredResource.getName(), "resource.name must be provided");
+
+        if (Strings.isNullOrEmpty(desiredResource.getResourceGroup())) {
+            fillResourceGroup(config, desiredResource);
+        }
+        if (Strings.isNullOrEmpty(desiredResource.getRegion())) {
+            desiredResource.setRegion("global");
+        }
+
+        AssertTools.assertNotNull(desiredResource.getResourceGroup(), "resource.resource group must be provided");
+        AssertTools.assertNotNull(desiredResource.getRegion(), "resource.region must be provided");
+
+        logger.info("Check {}", desiredResource);
+        var currentResource = dnsZoneFindByName(desiredResource.getResourceGroup(), desiredResource.getName()).orElse(null);
+        if (currentResource == null) {
+            // create
+            logger.info("Create: {}", desiredResource);
+            var manager = MariaDBManager.authenticate(tokenCredential, profile);
+            currentResource = AzureDnsZone.from(azureResourceManager.dnsZones().define(desiredResource.getName())
+                    .withExistingResourceGroup(desiredResource.getResourceGroup())
+                    .create());
+        } else {
+            // Check
+            logger.info("Exists: {}", desiredResource);
+
+            var differences = desiredResource.differences(currentResource);
+            if (!differences.isEmpty()) {
+                for (String difference : differences) {
+                    logger.error(difference);
+                }
+                throw new ManageUnrecoverableException();
+            }
+        }
+
+        return currentResource;
+    }
+
     public Optional<AzureDnsZone> dnsZoneFindByName(String resourceGroupName, String dnsZoneName) {
 
         init();
@@ -671,11 +713,11 @@ public class CloudAzureService extends AbstractBasics {
         AssertTools.assertNotNull(desiredResource.getResourceGroup(), "resource.resource group must be provided");
         AssertTools.assertNotNull(desiredResource.getRegion(), "resource.region must be provided");
 
-        logger.info("Check {}", desired);
+        logger.info("Check {}", desiredResource);
         var currentResource = mariadbFindByName(desiredResource.getResourceGroup(), desiredResource.getName()).orElse(null);
         if (currentResource == null) {
             // create
-            logger.info("Create: {}", desired);
+            logger.info("Create: {}", desiredResource);
             var manager = MariaDBManager.authenticate(tokenCredential, profile);
             currentResource = AzureMariadb.from(manager.servers().define(desiredResource.getName())
                     .withRegion(desiredResource.getRegion())
@@ -693,7 +735,7 @@ public class CloudAzureService extends AbstractBasics {
                     .create());
         } else {
             // Check
-            logger.info("Exists: {}", desired);
+            logger.info("Exists: {}", desiredResource);
 
             var differences = desiredResource.differences(currentResource);
             if (!differences.isEmpty()) {

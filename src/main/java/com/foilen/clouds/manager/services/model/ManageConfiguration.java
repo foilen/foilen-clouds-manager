@@ -20,6 +20,7 @@ public class ManageConfiguration {
     private List<AzureKeyVault> azureKeyVaults = new ArrayList<>();
     private List<AzureApplicationServicePlan> azureApplicationServicePlans = new ArrayList<>();
     private List<AzureMariadbManageConfiguration> azureMariadbs = new ArrayList<>();
+    private List<AzureDnsZoneManageConfiguration> azureDnsZones = new ArrayList<>();
 
     public List<AzureResourceGroup> getAzureResourceGroups() {
         return azureResourceGroups;
@@ -51,5 +52,13 @@ public class ManageConfiguration {
 
     public void setAzureMariadbs(List<AzureMariadbManageConfiguration> azureMariadbs) {
         this.azureMariadbs = azureMariadbs;
+    }
+
+    public List<AzureDnsZoneManageConfiguration> getAzureDnsZones() {
+        return azureDnsZones;
+    }
+
+    public void setAzureDnsZones(List<AzureDnsZoneManageConfiguration> azureDnsZones) {
+        this.azureDnsZones = azureDnsZones;
     }
 }

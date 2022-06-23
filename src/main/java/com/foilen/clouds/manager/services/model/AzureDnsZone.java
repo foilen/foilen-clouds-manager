@@ -9,6 +9,9 @@
  */
 package com.foilen.clouds.manager.services.model;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class AzureDnsZone extends CommonResource implements DnsZone, HasResourceGroup {
 
     public static AzureDnsZone from(com.azure.resourcemanager.dns.models.DnsZone dnsZone) {
@@ -26,6 +29,13 @@ public class AzureDnsZone extends CommonResource implements DnsZone, HasResource
 
     public AzureDnsZone() {
         super(CloudProvider.AZURE);
+    }
+
+    public List<String> differences(AzureDnsZone current) {
+        var differences = new ArrayList<String>();
+        different(differences,"Dns Zone", name, "resourceGroup", resourceGroup, current.resourceGroup);
+        different(differences,"Dns Zone", name, "region", region, current.region);
+        return differences;
     }
 
     @Override

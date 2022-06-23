@@ -9,28 +9,17 @@
  */
 package com.foilen.clouds.manager.services.model;
 
-import com.foilen.databasetools.manage.mariadb.MariadbManagerConfig;
+public class AzureDnsZoneManageConfiguration {
 
-public class AzureMariadbManageConfiguration  {
+    private AzureDnsZone resource;
 
-    private AzureMariadb resource;
-    private MariadbManagerConfig config;
-
-    public AzureMariadb getResource() {
+    public AzureDnsZone getResource() {
         return resource;
     }
 
-    public AzureMariadbManageConfiguration setResource(AzureMariadb resource) {
+    public AzureDnsZoneManageConfiguration setResource(AzureDnsZone resource) {
         this.resource = resource;
         return this;
     }
 
-    public MariadbManagerConfig getConfig() {
-        return config;
-    }
-
-    public AzureMariadbManageConfiguration setConfig(MariadbManagerConfig config) {
-        this.config = config;
-        return this;
-    }
 }
