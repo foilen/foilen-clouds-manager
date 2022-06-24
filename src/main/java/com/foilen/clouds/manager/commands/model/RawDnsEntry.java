@@ -22,7 +22,7 @@ public class RawDnsEntry extends AbstractBasics implements Comparable<RawDnsEntr
     private Integer weight;
     private Integer port;
 
-    private long ttl;
+    private long ttl = 60 * 60 * 24 * 2; // 2 Days
 
     public RawDnsEntry() {
     }

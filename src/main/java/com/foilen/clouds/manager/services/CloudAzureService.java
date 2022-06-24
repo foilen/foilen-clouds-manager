@@ -41,7 +41,10 @@ import com.foilen.databasetools.manage.mariadb.MariadbManagerConfig;
 import com.foilen.smalltools.JavaEnvironmentValues;
 import com.foilen.smalltools.crypt.bouncycastle.cert.RSACertificate;
 import com.foilen.smalltools.crypt.bouncycastle.cert.RSATools;
+import com.foilen.smalltools.listscomparator.ListComparatorHandler;
+import com.foilen.smalltools.listscomparator.ListsComparator;
 import com.foilen.smalltools.tools.*;
+import com.foilen.smalltools.tuple.Tuple2;
 import com.google.common.base.Strings;
 import org.bouncycastle.asn1.DERBMPString;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
@@ -61,6 +64,8 @@ import java.io.IOException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 @Component
@@ -192,6 +197,8 @@ public class CloudAzureService extends AbstractBasics {
 
     public AzureDnsZone dnsZoneManage(ManageConfiguration config, AzureDnsZoneManageConfiguration desired) {
 
+        init();
+
         var desiredResource = desired.getResource();
 
         AssertTools.assertNotNull(desiredResource, "resource must be provided");
@@ -229,7 +236,102 @@ public class CloudAzureService extends AbstractBasics {
             }
         }
 
+        // Apply entries
+        if (desired.getConfig() != null) {
+            // Get what is currently present
+            var currentEntries = dnsZoneEntryListIgnoreNs(currentResource);
+            var desiredEntries = computeDnsEntries(currentEntries, desired.getConfig());
+
+            // Apply
+            Set<Tuple2<String, String>> nameTypesToUpdate = new HashSet<>();
+            ListsComparator.compareStreams(
+                    currentEntries.stream(),
+                    desiredEntries.stream(),
+                    new ListComparatorHandler<RawDnsEntry, RawDnsEntry>() {
+                        @Override
+                        public void both(RawDnsEntry current, RawDnsEntry desired) {
+                            // Keep
+                        }
+
+                        @Override
+                        public void leftOnly(RawDnsEntry current) {
+                            logger.info("[{}] Remove: {}", desiredResource.getName(), current);
+                            nameTypesToUpdate.add(new Tuple2<>(current.getName(), current.getType()));
+                        }
+
+                        @Override
+                        public void rightOnly(RawDnsEntry desired) {
+                            logger.info("[{}] Add: {}", desiredResource.getName(), desired);
+                            nameTypesToUpdate.add(new Tuple2<>(desired.getName(), desired.getType()));
+
+                        }
+                    }
+            );
+
+            if (!nameTypesToUpdate.isEmpty()) {
+                logger.info("Get DNS Zone {}", currentResource.getId());
+                DnsZone dnsZone = azureResourceManager.dnsZones().getById(currentResource.getId());
+
+                nameTypesToUpdate.forEach(nameType -> {
+                    var entryName = nameType.getA();
+                    var entryType = nameType.getB();
+                    dnsSetEntry(dnsZone, entryName, entryType,
+                            desiredEntries.stream()
+                                    .filter(it -> StringTools.safeEquals(it.getName(), entryName))
+                                    .filter(it -> StringTools.safeEquals(it.getType(), entryType))
+                                    .collect(Collectors.toList())
+                    );
+                });
+            }
+        }
+
         return currentResource;
+    }
+
+    protected List<RawDnsEntry> computeDnsEntries(List<RawDnsEntry> currentRawDnsEntries, DnsConfig desiredDnsConfig) {
+        // Copy all the current entries if desired
+        Map<String, Set<RawDnsEntry>> desiredEntriesByNameType = new HashMap<>();
+        if (!desiredDnsConfig.isStartEmpty()) {
+            currentRawDnsEntries.forEach(it -> {
+                String nameType = it.getName() + "|" + it.getType();
+                CollectionsTools.getOrCreateEmptyHashSet(desiredEntriesByNameType, nameType, RawDnsEntry.class)
+                        .add(it);
+            });
+        }
+
+        // Compute the desired entries
+        List<DnsEntryConfig> configs = desiredDnsConfig.getConfigs() == null ? Collections.emptyList() : desiredDnsConfig.getConfigs();
+        for (var configEntries : configs) {
+            if (configEntries.getRawDnsEntries() != null) {
+
+                // Remove any existing ones if OVERWRITE
+                if (configEntries.getConflictResolution() == ConflictResolution.OVERWRITE) {
+                    for (RawDnsEntry it : configEntries.getRawDnsEntries()) {
+                        String nameType = it.getName() + "|" + it.getType();
+                        desiredEntriesByNameType.remove(nameType);
+                    }
+                }
+
+                // Add entries
+                for (RawDnsEntry it : configEntries.getRawDnsEntries()) {
+                    String nameType = it.getName() + "|" + it.getType();
+                    CollectionsTools.getOrCreateEmptyHashSet(desiredEntriesByNameType, nameType, RawDnsEntry.class)
+                            .add(it);
+                }
+            }
+        }
+
+        // Update TTL for all with same name/type
+        desiredEntriesByNameType.values().forEach(entries -> {
+            final var ttl = entries.stream().map(RawDnsEntry::getTtl).reduce(172800L, Math::min);
+            entries.forEach(entry -> entry.setTtl(ttl));
+        });
+
+        return desiredEntriesByNameType.values().stream()
+                .flatMap(Set::stream)
+                .sorted().distinct()
+                .collect(Collectors.toList());
+
     }
 
     public Optional<AzureDnsZone> dnsZoneFindByName(String resourceGroupName, String dnsZoneName) {
@@ -247,6 +349,12 @@ public class CloudAzureService extends AbstractBasics {
             throw e;
         }
 
+    }
+
+    public List<RawDnsEntry> dnsZoneEntryListIgnoreNs(AzureDnsZone azureDnsZone) {
+        var entries = dnsZoneEntryList(azureDnsZone);
+        entries.removeIf(it -> StringTools.safeEquals(it.getType(), "NS"));
+        return entries;
     }
 
     public List<RawDnsEntry> dnsZoneEntryList(AzureDnsZone azureDnsZone) {
@@ -331,100 +439,137 @@ public class CloudAzureService extends AbstractBasics {
         return rawDnsEntries;
     }
 
-    public void dnsSetEntry(AzureDnsZone azureDnsZone, RawDnsEntry rawDnsEntry) {
+    public void dnsSetEntry(AzureDnsZone azureDnsZone, String entryName, String entryType, List<RawDnsEntry> rawDnsEntries) {
 
         init();
 
         logger.info("Get DNS Zone {}", azureDnsZone.getId());
         DnsZone dnsZone = azureResourceManager.dnsZones().getById(azureDnsZone.getId());
 
-        logger.info("Set {}", rawDnsEntry);
-        String baseDomainName = azureDnsZone.getName();
-        String subDomain = rawDnsEntry.getName();
-        subDomain = subDomain.substring(0, subDomain.length() - 1 - baseDomainName.length());
-        switch (rawDnsEntry.getType()) {
+        dnsSetEntry(dnsZone, entryName, entryType, rawDnsEntries);
+
+    }
+
+    public void dnsSetEntry(DnsZone dnsZone, String entryName, String entryType, List<RawDnsEntry> rawDnsEntries) {
+
+        AssertTools.assertFalse(
+                rawDnsEntries.stream()
+                        .anyMatch(it -> !StringTools.safeEquals(it.getName(), entryName) || !StringTools.safeEquals(it.getType(), entryType))
+                , "All provided raw entries must be for the same specified name and type");
+
+        logger.info("Set {}/{}", entryName, entryType);
+        String baseDomainName = dnsZone.name();
+        String subDomain = entryName;
+        if (StringTools.safeEquals(baseDomainName, subDomain)) {
+            subDomain = "@";
+        } else {
+            subDomain = subDomain.substring(0, subDomain.length() - 1 - baseDomainName.length());
+        }
+        final String subDomainFinal = subDomain;
+        switch (entryType) {
             case "AAAA":
                 dnsZone.update() //
                         .withoutAaaaRecordSet(subDomain) //
                         .apply();
-                dnsZone.update() //
-                        .defineAaaaRecordSet(subDomain) //
-                        .withIPv6Address(rawDnsEntry.getDetails()) //
-                        .withTimeToLive(rawDnsEntry.getTtl()) //
-                        .attach() //
-                        .apply();
+                if (!rawDnsEntries.isEmpty()) {
+                    var update = new AtomicReference<>(dnsZone.update() //
+                            .defineAaaaRecordSet(subDomain)
+                            .withIPv6Address(rawDnsEntries.get(0).getDetails()));
+                    forEachAllButFirst(rawDnsEntries, it -> update.set(update.get().withIPv6Address(it.getDetails())));
+                    update.get().withTimeToLive(rawDnsEntries.stream().map(RawDnsEntry::getTtl).reduce(172800L, Math::min)) //
+                            .attach() //
+                            .apply();
+                }
                 break;
 
             case "A":
                 dnsZone.update() //
                         .withoutARecordSet(subDomain) //
                         .apply();
-                dnsZone.update() //
-                        .defineARecordSet(subDomain) //
-                        .withIPv4Address(rawDnsEntry.getDetails()) //
-                        .withTimeToLive(rawDnsEntry.getTtl()) //
-                        .attach() //
-                        .apply();
+                if (!rawDnsEntries.isEmpty()) {
+                    var update = new AtomicReference<>(dnsZone.update() //
+                            .defineARecordSet(subDomain) //
+                            .withIPv4Address(rawDnsEntries.get(0).getDetails()));
+                    forEachAllButFirst(rawDnsEntries, it -> update.set(update.get().withIPv4Address(it.getDetails())));
+                    update.get().withTimeToLive(rawDnsEntries.stream().map(RawDnsEntry::getTtl).reduce(172800L, Math::min)) //
+                            .attach() //
+                            .apply();
+                }
                 break;
 
             case "CNAME":
                 dnsZone.update() //
                         .withoutCNameRecordSet(subDomain) //
                         .apply();
-                dnsZone.update() //
-                        .defineCNameRecordSet(subDomain) //
-                        .withAlias(rawDnsEntry.getDetails()) //
-                        .withTimeToLive(rawDnsEntry.getTtl()) //
-                        .attach() //
-                        .apply();
+                if (!rawDnsEntries.isEmpty()) {
+                    AssertTools.assertTrue(rawDnsEntries.size() == 1, "You can only have 1 CNAME entry");
+                    var update = new AtomicReference<>(dnsZone.update() //
+                            .defineCNameRecordSet(subDomain) //
+                            .withAlias(rawDnsEntries.get(0).getDetails()));
+                    update.get().withTimeToLive(rawDnsEntries.stream().map(RawDnsEntry::getTtl).reduce(172800L, Math::min)) //
+                            .attach() //
+                            .apply();
+                }
                 break;
 
             case "MX":
                 dnsZone.update() //
                         .withoutMXRecordSet(subDomain) //
                         .apply();
-                dnsZone.update() //
-                        .defineMXRecordSet(subDomain) //
-                        .withMailExchange(rawDnsEntry.getDetails(), rawDnsEntry.getPriority()) //
-                        .withTimeToLive(rawDnsEntry.getTtl()) //
-                        .attach() //
-                        .apply();
+                if (!rawDnsEntries.isEmpty()) {
+                    var update = new AtomicReference<>(dnsZone.update() //
+                            .defineMXRecordSet(subDomain) //
+                            .withMailExchange(rawDnsEntries.get(0).getDetails(), rawDnsEntries.get(0).getPriority()));
+                    forEachAllButFirst(rawDnsEntries, it -> update.set(update.get().withMailExchange(it.getDetails(), it.getPriority())));
+                    update.get().withTimeToLive(rawDnsEntries.stream().map(RawDnsEntry::getTtl).reduce(172800L, Math::min)) //
+                            .attach() //
+                            .apply();
+                }
                 break;
 
             case "NS":
                 dnsZone.update() //
                         .withoutNSRecordSet(subDomain) //
                         .apply();
-                dnsZone.update() //
-                        .defineNSRecordSet(subDomain) //
-                        .withNameServer(rawDnsEntry.getDetails()) //
-                        .withTimeToLive(rawDnsEntry.getTtl()) //
-                        .attach() //
-                        .apply();
+                if (!rawDnsEntries.isEmpty()) {
+                    var update = new AtomicReference<>(dnsZone.update() //
+                            .defineNSRecordSet(subDomain) //
+                            .withNameServer(rawDnsEntries.get(0).getDetails()));
+                    forEachAllButFirst(rawDnsEntries, it -> update.set(update.get().withNameServer(it.getDetails())));
+                    update.get().withTimeToLive(rawDnsEntries.stream().map(RawDnsEntry::getTtl).reduce(172800L, Math::min)) //
+                            .attach() //
+                            .apply();
+                }
                 break;
 
             case "SRV":
                 dnsZone.update() //
                         .withoutSrvRecordSet(subDomain) //
                         .apply();
-                dnsZone.update() //
-                        .defineSrvRecordSet(subDomain) //
-                        .withRecord(subDomain, rawDnsEntry.getPort(), rawDnsEntry.getPriority(), rawDnsEntry.getWeight()) //
-                        .withTimeToLive(rawDnsEntry.getTtl()) //
-                        .attach() //
-                        .apply();
+                if (!rawDnsEntries.isEmpty()) {
+                    var update = new AtomicReference<>(dnsZone.update() //
+                            .defineSrvRecordSet(subDomain) //
+                            .withRecord(subDomain, rawDnsEntries.get(0).getPort(), rawDnsEntries.get(0).getPriority(), rawDnsEntries.get(0).getWeight()));
+                    forEachAllButFirst(rawDnsEntries, it -> update.set(update.get().withRecord(subDomainFinal, it.getPort(), it.getPriority(), it.getWeight())));
+                    update.get().withTimeToLive(rawDnsEntries.stream().map(RawDnsEntry::getTtl).reduce(172800L, Math::min)) //
+                            .attach() //
+                            .apply();
+                }
                 break;
 
             case "TXT":
                 dnsZone.update() //
                         .withoutTxtRecordSet(subDomain) //
                         .apply();
-                dnsZone.update() //
-                        .defineTxtRecordSet(subDomain) //
-                        .withText(rawDnsEntry.getDetails()) //
-                        .withTimeToLive(rawDnsEntry.getTtl()) //
-                        .attach() //
-                        .apply();
+                if (!rawDnsEntries.isEmpty()) {
+                    var update = new AtomicReference<>(dnsZone.update() //
+                            .defineTxtRecordSet(subDomain) //
+                            .withText(rawDnsEntries.get(0).getDetails()));
+                    forEachAllButFirst(rawDnsEntries, it -> update.set(update.get().withText(it.getDetails())));
+                    update.get().withTimeToLive(rawDnsEntries.stream().map(RawDnsEntry::getTtl).reduce(172800L, Math::min)) //
+                            .attach() //
+                            .apply();
+                }
                 break;
 
         }
@@ -921,6 +1066,21 @@ public class CloudAzureService extends AbstractBasics {
     private void fillResourceGroup(ManageConfiguration config, HasResourceGroup hasResourceGroup) {
         if (config.getAzureResourceGroups().size() == 1) {
             hasResourceGroup.setResourceGroup(config.getAzureResourceGroups().get(0).getName());
+        }
+    }
+
+    private <T> void forEachAllButFirst(List<T> items, Consumer<T> action) {
+        var it = items.iterator();
+
+        // Skip first
+        if (it.hasNext()) {
+            it.next();
+        }
+
+        // All the rest
+        while (it.hasNext()) {
+            var next = it.next();
+            action.accept(next);
         }
     }
 

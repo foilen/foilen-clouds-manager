@@ -9,9 +9,13 @@
  */
 package com.foilen.clouds.manager.services.model;
 
-public class AzureDnsZoneManageConfiguration {
+import com.foilen.smalltools.tools.AbstractBasics;
+
+public class AzureDnsZoneManageConfiguration extends AbstractBasics {
 
     private AzureDnsZone resource;
+    private DnsConfig config;
+
 
     public AzureDnsZone getResource() {
         return resource;
@@ -22,4 +26,12 @@ public class AzureDnsZoneManageConfiguration {
         return this;
     }
 
+    public DnsConfig getConfig() {
+        return config;
+    }
+
+    public AzureDnsZoneManageConfiguration setConfig(DnsConfig config) {
+        this.config = config;
+        return this;
+    }
 }

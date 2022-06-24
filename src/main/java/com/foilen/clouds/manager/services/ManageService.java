@@ -9,14 +9,14 @@
  */
 package com.foilen.clouds.manager.services;
 
-import com.foilen.clouds.manager.services.model.AzureDnsZoneManageConfiguration;
-import com.foilen.clouds.manager.services.model.AzureMariadbManageConfiguration;
-import com.foilen.clouds.manager.services.model.ManageConfiguration;
+import com.foilen.clouds.manager.services.model.*;
 import com.foilen.smalltools.tools.AbstractBasics;
+import com.foilen.smalltools.tools.FileTools;
 import com.foilen.smalltools.tools.JsonTools;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -71,12 +71,23 @@ public class ManageService extends AbstractBasics {
 
         logger.info("Getting Dns Zones");
         config.setAzureDnsZones(cloudAzureService.dnsZoneList().stream()
-                .map(it -> new AzureDnsZoneManageConfiguration().setResource(it))
+                .map(it -> new AzureDnsZoneManageConfiguration()
+                        .setResource(it)
+                        .setConfig(new DnsConfig()
+                                .setStartEmpty(true)
+                                .setConfigs(Collections.singletonList(new DnsEntryConfig()
+                                                .setConflictResolution(ConflictResolution.APPEND)
+                                                .setRawDnsEntries(cloudAzureService.dnsZoneEntryListIgnoreNs(it))
+                                        )
+                                )
+                        )
+                )
                 .collect(Collectors.toList())
         );
 
         logger.info("Export to {}", file);
-        JsonTools.writeToFile(file, cleanup(config));
+        var json = JsonTools.prettyPrintWithoutNulls(cleanup(config));
+        FileTools.writeFile(json, file);
     }
 
     private Object cleanup(ManageConfiguration config) {
