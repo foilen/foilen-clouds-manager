@@ -1,7 +1,7 @@
 plugins {
-  id "com.github.ben-manes.versions" version "$versionsVersion"
-  id 'io.spring.dependency-management' version "$springDependencyManagementVersion"
-  id 'org.springframework.boot' version "$springBootVersion"
+  id "com.github.ben-manes.versions" version "0.42.0"
+  id 'io.spring.dependency-management' version "1.0.11.RELEASE"
+  id 'org.springframework.boot' version "2.7.1"
 }
 
 apply plugin: 'eclipse'
@@ -27,25 +27,25 @@ eclipse {
 
 dependencies {
   implementation "com.fasterxml.jackson.core:jackson-databind"
-  implementation "com.foilen:jl-smalltools:$smalltoolsVersion"
-  implementation "com.foilen:database-tools:$databaseToolsVersion"
-  implementation "com.google.guava:guava:$guavaVersion"
-  implementation "dnsjava:dnsjava:$dnsJavaVersion"
+  implementation "com.foilen:jl-smalltools:1.7.0"
+  implementation "com.foilen:database-tools:1.0.0"
+  implementation "com.google.guava:guava:31.1-jre"
+  implementation "dnsjava:dnsjava:3.5.1"
   implementation "javax.xml.bind:jaxb-api"
-  implementation "com.jcraft:jsch:$jschVersion"
+  implementation "com.jcraft:jsch:0.1.55"
   implementation "org.apache.commons:commons-lang3"
   implementation "org.apache.httpcomponents:httpclient"
   implementation "org.freemarker:freemarker"
-  implementation "org.jsoup:jsoup:$jsoupVersion"
-  implementation "org.shredzone.acme4j:acme4j-client:$acme4jVersion"
-  implementation "org.shredzone.acme4j:acme4j-utils:$acme4jVersion"
+  implementation "org.jsoup:jsoup:1.15.1"
+  implementation "org.shredzone.acme4j:acme4j-client:2.13"
+  implementation "org.shredzone.acme4j:acme4j-utils:2.13"
   implementation "org.springframework.data:spring-data-jpa"
-  implementation "org.springframework.shell:spring-shell-starter:$springShellVersion"
+  implementation "org.springframework.shell:spring-shell-starter:2.0.1.RELEASE"
   implementation "org.springframework:spring-web"
   
   // Microsoft Azure
-  implementation "com.azure:azure-identity:1.5.1"
-  implementation "com.azure.resourcemanager:azure-resourcemanager:2.15.0"
+  implementation 'com.azure:azure-identity:1.5.2'
+  implementation "com.azure.resourcemanager:azure-resourcemanager:2.16.0"
   implementation "com.azure.resourcemanager:azure-resourcemanager-mariadb:1.0.0-beta.1"
 
   testImplementation "junit:junit"
