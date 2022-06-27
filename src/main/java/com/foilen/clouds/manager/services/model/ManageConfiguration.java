@@ -9,8 +9,6 @@
  */
 package com.foilen.clouds.manager.services.model;
 
-import com.foilen.smalltools.restapi.model.AbstractApiBase;
-
 import java.util.ArrayList;
 import java.util.List;
 

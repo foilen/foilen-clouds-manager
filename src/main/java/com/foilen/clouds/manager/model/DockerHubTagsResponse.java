@@ -9,10 +9,10 @@
  */
 package com.foilen.clouds.manager.model;
 
-import java.util.List;
-
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.foilen.smalltools.tools.AbstractBasics;
+
+import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class DockerHubTagsResponse extends AbstractBasics {

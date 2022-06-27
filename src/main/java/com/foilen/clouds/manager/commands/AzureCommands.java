@@ -9,17 +9,16 @@
  */
 package com.foilen.clouds.manager.commands;
 
-import java.util.Optional;
-
+import com.foilen.clouds.manager.CliException;
+import com.foilen.clouds.manager.services.CloudAzureService;
 import com.foilen.clouds.manager.services.model.AzureDnsZone;
+import com.foilen.clouds.manager.services.model.AzureKeyVault;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.shell.standard.ShellComponent;
 import org.springframework.shell.standard.ShellMethod;
 import org.springframework.shell.standard.ShellOption;
 
-import com.foilen.clouds.manager.CliException;
-import com.foilen.clouds.manager.services.CloudAzureService;
-import com.foilen.clouds.manager.services.model.AzureKeyVault;
+import java.util.Optional;
 
 @ShellComponent
 public class AzureCommands {

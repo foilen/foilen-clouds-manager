@@ -9,16 +9,15 @@
  */
 package com.foilen.clouds.manager.services;
 
-import java.util.Collections;
-import java.util.Optional;
-
-import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestTemplate;
-
 import com.foilen.clouds.manager.model.DockerHubTag;
 import com.foilen.clouds.manager.model.DockerHubTagsResponse;
 import com.foilen.clouds.manager.model.OnlineFileDetails;
 import com.foilen.smalltools.tools.AbstractBasics;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.Collections;
+import java.util.Optional;
 
 @Component
 public class DockerHubService extends AbstractBasics {

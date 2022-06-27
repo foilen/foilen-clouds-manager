@@ -9,11 +9,11 @@
  */
 package com.foilen.clouds.manager.services.model;
 
+import com.azure.resourcemanager.keyvault.models.Vault;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-
-import com.azure.resourcemanager.keyvault.models.Vault;
 
 public class AzureKeyVault extends CommonResource implements SecretStore, HasResourceGroup, HasRegion {
 

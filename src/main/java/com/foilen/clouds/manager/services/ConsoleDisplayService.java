@@ -9,18 +9,13 @@
  */
 package com.foilen.clouds.manager.services;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import org.springframework.stereotype.Component;
-
-import com.foilen.clouds.manager.services.model.HasResourceGroup;
-import com.foilen.clouds.manager.services.model.HasCloudProvider;
-import com.foilen.clouds.manager.services.model.HasId;
-import com.foilen.clouds.manager.services.model.HasName;
-import com.foilen.clouds.manager.services.model.HasRegion;
+import com.foilen.clouds.manager.services.model.*;
 import com.foilen.smalltools.tools.AbstractBasics;
 import com.google.common.base.Joiner;
+import org.springframework.stereotype.Component;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Component
 public class ConsoleDisplayService extends AbstractBasics implements DisplayService {

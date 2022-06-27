@@ -9,10 +9,10 @@
  */
 package com.foilen.clouds.manager.services.model.json;
 
+import com.foilen.smalltools.restapi.model.AbstractApiBase;
+
 import java.util.ArrayList;
 import java.util.List;
-
-import com.foilen.smalltools.restapi.model.AbstractApiBase;
 
 public class AzProfileDetails extends AbstractApiBase {
 

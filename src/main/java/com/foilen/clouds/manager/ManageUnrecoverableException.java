@@ -9,8 +9,6 @@
  */
 package com.foilen.clouds.manager;
 
-import com.foilen.smalltools.restapi.model.ApiError;
-
 public class ManageUnrecoverableException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;

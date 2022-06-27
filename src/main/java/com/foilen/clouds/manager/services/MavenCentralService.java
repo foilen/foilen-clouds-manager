@@ -9,17 +9,16 @@
  */
 package com.foilen.clouds.manager.services;
 
-import java.io.IOException;
-
+import com.foilen.clouds.manager.CliException;
+import com.foilen.clouds.manager.model.OnlineFileDetails;
+import com.foilen.smalltools.tools.AbstractBasics;
+import com.google.common.collect.ComparisonChain;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.select.Elements;
 import org.springframework.stereotype.Component;
 
-import com.foilen.clouds.manager.CliException;
-import com.foilen.clouds.manager.model.OnlineFileDetails;
-import com.foilen.smalltools.tools.AbstractBasics;
-import com.google.common.collect.ComparisonChain;
+import java.io.IOException;
 
 @Component
 public class MavenCentralService extends AbstractBasics {

@@ -10,7 +10,7 @@
 package com.foilen.clouds.manager.commands;
 
 import com.foilen.clouds.manager.services.CloudAzureService;
-import com.foilen.clouds.manager.services.CloudService;
+import com.foilen.clouds.manager.services.LetsEncryptService;
 import com.foilen.clouds.manager.services.model.DnsZone;
 import com.foilen.clouds.manager.services.model.SecretStore;
 import com.foilen.clouds.manager.services.model.WebApp;
@@ -18,8 +18,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.shell.standard.ShellComponent;
 import org.springframework.shell.standard.ShellMethod;
 import org.springframework.shell.standard.ShellOption;
-
-import com.foilen.clouds.manager.services.LetsEncryptService;
 
 import java.util.Optional;
 
