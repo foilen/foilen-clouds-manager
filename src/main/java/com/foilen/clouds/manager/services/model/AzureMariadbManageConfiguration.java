@@ -11,7 +11,7 @@ package com.foilen.clouds.manager.services.model;
 
 import com.foilen.databasetools.manage.mariadb.MariadbManagerConfig;
 
-public class AzureMariadbManageConfiguration  {
+public class AzureMariadbManageConfiguration {
 
     private AzureMariadb resource;
     private MariadbManagerConfig config;

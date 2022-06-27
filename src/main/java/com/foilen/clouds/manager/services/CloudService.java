@@ -67,6 +67,10 @@ public class CloudService extends AbstractBasics {
         return cloudAzureService;
     }
 
+    public void setCloudAzureService(CloudAzureService cloudAzureService) {
+        this.cloudAzureService = cloudAzureService;
+    }
+
     public void pushCertificate(String hostname, WebApp httpsWebApp, RSACertificate caRsaCertificate, RSACertificate rsaCertificate, String pfxPassword) {
 
         switch (httpsWebApp.getProvider()) {
@@ -98,10 +102,6 @@ public class CloudService extends AbstractBasics {
 
         throw new CliException("Unknown provider");
 
-    }
-
-    public void setCloudAzureService(CloudAzureService cloudAzureService) {
-        this.cloudAzureService = cloudAzureService;
     }
 
 }

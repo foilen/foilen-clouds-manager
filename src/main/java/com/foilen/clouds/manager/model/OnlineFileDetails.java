@@ -20,13 +20,13 @@ public class OnlineFileDetails extends AbstractBasics {
         return jarUrl;
     }
 
-    public String getVersion() {
-        return version;
-    }
-
     public OnlineFileDetails setJarUrl(String jarUrl) {
         this.jarUrl = jarUrl;
         return this;
+    }
+
+    public String getVersion() {
+        return version;
     }
 
     public OnlineFileDetails setVersion(String version) {

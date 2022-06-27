@@ -34,7 +34,7 @@ public class MavenCentralService extends AbstractBasics {
                     .filter(it -> it.length == 3) //
                     .map(it -> {
                         try {
-                            return new int[] { Integer.valueOf(it[0]), Integer.valueOf(it[1]), Integer.valueOf(it[2]) };
+                            return new int[]{Integer.valueOf(it[0]), Integer.valueOf(it[1]), Integer.valueOf(it[2])};
                         } catch (NumberFormatException e) {
                             return null;
                         }

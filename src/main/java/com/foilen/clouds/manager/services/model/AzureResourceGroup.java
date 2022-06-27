@@ -16,6 +16,13 @@ import java.util.List;
 
 public class AzureResourceGroup extends CommonResource implements DnsZone {
 
+    private String region;
+    private String name;
+
+    public AzureResourceGroup() {
+        super(CloudProvider.AZURE);
+    }
+
     public static AzureResourceGroup from(ResourceGroup resourceGroup) {
         var item = new AzureResourceGroup();
         item.setId(resourceGroup.id());
@@ -24,16 +31,9 @@ public class AzureResourceGroup extends CommonResource implements DnsZone {
         return item;
     }
 
-    private String region;
-    private String name;
-
-    public AzureResourceGroup() {
-        super(CloudProvider.AZURE);
-    }
-
     public List<String> differences(AzureResourceGroup current) {
         var differences = new ArrayList<String>();
-        different(differences,"Resource Group", name, "region", region, current.region);
+        different(differences, "Resource Group", name, "region", region, current.region);
         return differences;
     }
 
@@ -42,13 +42,13 @@ public class AzureResourceGroup extends CommonResource implements DnsZone {
         return name;
     }
 
+    public void setName(String name) {
+        this.name = name;
+    }
+
     @Override
     public String getRegion() {
         return region;
-    }
-
-    public void setName(String name) {
-        this.name = name;
     }
 
     public void setRegion(String region) {

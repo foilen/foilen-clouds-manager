@@ -28,13 +28,13 @@ public abstract class CommonResource extends AbstractBasics implements HasCloudP
         return id;
     }
 
+    public void setId(String id) {
+        this.id = id;
+    }
+
     @Override
     public CloudProvider getProvider() {
         return provider;
-    }
-
-    public void setId(String id) {
-        this.id = id;
     }
 
     protected void different(List<String> differences, String type, String name, String field, Object desired, Object current) {

@@ -44,33 +44,13 @@ public class RawDnsEntry extends AbstractBasics implements Comparable<RawDnsEntr
         return details;
     }
 
-    public String getName() {
-        return name;
-    }
-
-    public Integer getPort() {
-        return port;
-    }
-
-    public Integer getPriority() {
-        return priority;
-    }
-
-    public long getTtl() {
-        return ttl;
-    }
-
-    public String getType() {
-        return type;
-    }
-
-    public Integer getWeight() {
-        return weight;
-    }
-
     public RawDnsEntry setDetails(String details) {
         this.details = details;
         return this;
+    }
+
+    public String getName() {
+        return name;
     }
 
     public RawDnsEntry setName(String name) {
@@ -78,9 +58,17 @@ public class RawDnsEntry extends AbstractBasics implements Comparable<RawDnsEntr
         return this;
     }
 
+    public Integer getPort() {
+        return port;
+    }
+
     public RawDnsEntry setPort(Integer port) {
         this.port = port;
         return this;
+    }
+
+    public Integer getPriority() {
+        return priority;
     }
 
     public RawDnsEntry setPriority(Integer priority) {
@@ -88,14 +76,26 @@ public class RawDnsEntry extends AbstractBasics implements Comparable<RawDnsEntr
         return this;
     }
 
+    public long getTtl() {
+        return ttl;
+    }
+
     public RawDnsEntry setTtl(long ttl) {
         this.ttl = ttl;
         return this;
     }
 
+    public String getType() {
+        return type;
+    }
+
     public RawDnsEntry setType(String type) {
         this.type = type;
         return this;
+    }
+
+    public Integer getWeight() {
+        return weight;
     }
 
     public RawDnsEntry setWeight(Integer weight) {

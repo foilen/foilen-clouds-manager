@@ -18,6 +18,22 @@ import java.util.List;
 
 public class AzureMariadb extends CommonResource implements Mariadb, HasResourceGroup {
 
+    private String resourceGroup;
+    private String region;
+    private String name;
+    private String version;
+    private String sslEnforcement;
+    private String minimalTlsVersion;
+    private String publicNetworkAccess;
+    private String administratorLogin;
+    private String administratorLoginPassword;
+    private String skuName;
+    private StorageProfile storageProfile;
+
+    public AzureMariadb() {
+        super(CloudProvider.AZURE);
+    }
+
     public static AzureMariadb from(Server server) {
         var item = new AzureMariadb();
         item.setId(server.id());
@@ -39,23 +55,6 @@ public class AzureMariadb extends CommonResource implements Mariadb, HasResource
         return item;
     }
 
-    private String resourceGroup;
-    private String region;
-    private String name;
-
-    private String version;
-    private String sslEnforcement;
-    private String minimalTlsVersion;
-    private String publicNetworkAccess;
-    private String administratorLogin;
-    private String administratorLoginPassword;
-    private String skuName;
-    private StorageProfile storageProfile;
-
-    public AzureMariadb() {
-        super(CloudProvider.AZURE);
-    }
-
     public List<String> differences(AzureMariadb current) {
         var differences = new ArrayList<String>();
         different(differences, "Mariadb", name, "resourceGroup", resourceGroup, current.resourceGroup);
@@ -74,22 +73,22 @@ public class AzureMariadb extends CommonResource implements Mariadb, HasResource
         return name;
     }
 
+    public void setName(String name) {
+        this.name = name;
+    }
+
     @Override
     public String getRegion() {
         return region;
     }
 
+    public void setRegion(String region) {
+        this.region = region;
+    }
+
     @Override
     public String getResourceGroup() {
         return resourceGroup;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public void setRegion(String region) {
-        this.region = region;
     }
 
     public void setResourceGroup(String resourceGroup) {

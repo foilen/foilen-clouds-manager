@@ -13,6 +13,14 @@ import com.azure.resourcemanager.appservice.models.WebAppBasic;
 
 public class AzureWebApp extends CommonResource implements WebApp, HasResourceGroup {
 
+    private String resourceGroup;
+    private String region;
+    private String name;
+
+    public AzureWebApp() {
+        super(CloudProvider.AZURE);
+    }
+
     public static WebApp from(WebAppBasic webApp) {
         AzureWebApp azureWebApp = new AzureWebApp();
         azureWebApp.setId(webApp.id());
@@ -22,17 +30,13 @@ public class AzureWebApp extends CommonResource implements WebApp, HasResourceGr
         return azureWebApp;
     }
 
-    private String resourceGroup;
-    private String region;
-    private String name;
-
-    public AzureWebApp() {
-        super(CloudProvider.AZURE);
-    }
-
     @Override
     public String getName() {
         return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
     }
 
     @Override
@@ -40,17 +44,13 @@ public class AzureWebApp extends CommonResource implements WebApp, HasResourceGr
         return region;
     }
 
+    public void setRegion(String region) {
+        this.region = region;
+    }
+
     @Override
     public String getResourceGroup() {
         return resourceGroup;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public void setRegion(String region) {
-        this.region = region;
     }
 
     public void setResourceGroup(String resourceGroup) {

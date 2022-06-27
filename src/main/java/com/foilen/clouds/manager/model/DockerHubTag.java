@@ -24,12 +24,12 @@ public class DockerHubTag extends AbstractBasics {
         return lastUpdated;
     }
 
-    public String getName() {
-        return name;
-    }
-
     public void setLastUpdated(String lastUpdated) {
         this.lastUpdated = lastUpdated;
+    }
+
+    public String getName() {
+        return name;
     }
 
     public void setName(String name) {

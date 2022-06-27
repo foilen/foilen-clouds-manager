@@ -16,6 +16,18 @@ import java.util.List;
 
 public class AzureApplicationServicePlan extends CommonResource implements DnsZone, HasResourceGroup, HasRegion {
 
+    private String resourceGroup;
+    private String region;
+    private String name;
+    private String pricingTierSize;
+    private String operatingSystem;
+    private Integer capacity;
+    private Boolean perSiteScaling;
+
+    public AzureApplicationServicePlan() {
+        super(CloudProvider.AZURE);
+    }
+
     public static AzureApplicationServicePlan from(AppServicePlan appServicePlan) {
         var item = new AzureApplicationServicePlan();
         item.setId(appServicePlan.id());
@@ -30,27 +42,14 @@ public class AzureApplicationServicePlan extends CommonResource implements DnsZo
         return item;
     }
 
-    private String resourceGroup;
-    private String region;
-    private String name;
-
-    private String pricingTierSize;
-    private String operatingSystem;
-    private Integer capacity;
-    private Boolean perSiteScaling;
-
-    public AzureApplicationServicePlan() {
-        super(CloudProvider.AZURE);
-    }
-
     public List<String> differences(AzureApplicationServicePlan current) {
         var differences = new ArrayList<String>();
-        different(differences,"Application Service Plan", name, "resourceGroup", resourceGroup, current.resourceGroup);
-        different(differences,"Application Service Plan", name, "region", region, current.region);
-        different(differences,"Application Service Plan", name, "pricingTierSize", pricingTierSize, current.pricingTierSize);
-        different(differences,"Application Service Plan", name, "operatingSystem", operatingSystem, current.operatingSystem);
-        different(differences,"Application Service Plan", name, "capacity", capacity, current.capacity);
-        different(differences,"Application Service Plan", name, "perSiteScaling", perSiteScaling, current.perSiteScaling);
+        different(differences, "Application Service Plan", name, "resourceGroup", resourceGroup, current.resourceGroup);
+        different(differences, "Application Service Plan", name, "region", region, current.region);
+        different(differences, "Application Service Plan", name, "pricingTierSize", pricingTierSize, current.pricingTierSize);
+        different(differences, "Application Service Plan", name, "operatingSystem", operatingSystem, current.operatingSystem);
+        different(differences, "Application Service Plan", name, "capacity", capacity, current.capacity);
+        different(differences, "Application Service Plan", name, "perSiteScaling", perSiteScaling, current.perSiteScaling);
         return differences;
     }
 
@@ -59,22 +58,22 @@ public class AzureApplicationServicePlan extends CommonResource implements DnsZo
         return name;
     }
 
+    public void setName(String name) {
+        this.name = name;
+    }
+
     @Override
     public String getRegion() {
         return region;
     }
 
+    public void setRegion(String region) {
+        this.region = region;
+    }
+
     @Override
     public String getResourceGroup() {
         return resourceGroup;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public void setRegion(String region) {
-        this.region = region;
     }
 
     public void setResourceGroup(String resourceGroup) {
