@@ -9,6 +9,7 @@ public class DnsEntryConfig extends AbstractBasics {
 
     private ConflictResolution conflictResolution = ConflictResolution.APPEND;
     private List<RawDnsEntry> rawDnsEntries;
+    private List<FoilenCloudDnsEntries> foilenCloudDnsEntries;
 
     public ConflictResolution getConflictResolution() {
         return conflictResolution;
@@ -25,6 +26,15 @@ public class DnsEntryConfig extends AbstractBasics {
 
     public DnsEntryConfig setRawDnsEntries(List<RawDnsEntry> rawDnsEntries) {
         this.rawDnsEntries = rawDnsEntries;
+        return this;
+    }
+
+    public List<FoilenCloudDnsEntries> getFoilenCloudDnsEntries() {
+        return foilenCloudDnsEntries;
+    }
+
+    public DnsEntryConfig setFoilenCloudDnsEntries(List<FoilenCloudDnsEntries> foilenCloudDnsEntries) {
+        this.foilenCloudDnsEntries = foilenCloudDnsEntries;
         return this;
     }
 }

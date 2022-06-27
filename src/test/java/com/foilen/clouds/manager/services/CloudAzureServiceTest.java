@@ -16,6 +16,7 @@ import com.foilen.clouds.manager.services.model.DnsEntryConfig;
 import com.foilen.clouds.manager.services.model.json.AzProfileDetails;
 import com.foilen.smalltools.test.asserts.AssertTools;
 import com.foilen.smalltools.tools.ResourceTools;
+import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.File;
@@ -76,7 +77,7 @@ public class CloudAzureServiceTest {
         ));
         config.setStartEmpty(true);
 
-        var actual = service.computeDnsEntries(initial, config);
+        var actual = service.computeDnsEntries("example.com", initial, config);
 
         List<RawDnsEntry> expected = Arrays.asList(
                 new RawDnsEntry().setName("a.example.com").setType("A").setDetails("127.0.0.10"),
@@ -148,7 +149,7 @@ public class CloudAzureServiceTest {
         ));
         config.setStartEmpty(false);
 
-        var actual = service.computeDnsEntries(initial, config);
+        var actual = service.computeDnsEntries("example.com", initial, config);
 
         List<RawDnsEntry> expected = Arrays.asList(
                 new RawDnsEntry().setName("a.example.com").setType("TXT").setDetails("ABC"),
@@ -206,7 +207,7 @@ public class CloudAzureServiceTest {
         ));
         config.setStartEmpty(true);
 
-        var actual = service.computeDnsEntries(initial, config);
+        var actual = service.computeDnsEntries("example.com", initial, config);
 
         List<RawDnsEntry> expected = Arrays.asList(
                 new RawDnsEntry().setName("a.example.com").setType("TXT").setDetails("ABC").setTtl(20),
@@ -222,6 +223,17 @@ public class CloudAzureServiceTest {
         );
         Collections.sort(expected);
         AssertTools.assertJsonComparison(expected, actual);
+    }
+
+    @Test
+    public void testDnsSubDomain() {
+        Assert.assertEquals("@", CloudAzureService.dnsSubDomain("foilen.com", "foilen.com"));
+        Assert.assertEquals("abc", CloudAzureService.dnsSubDomain("foilen.com", "abc.foilen.com"));
+        Assert.assertEquals("zzzzzz._domainkey", CloudAzureService.dnsSubDomain("foilen.com", "zzzzzz._domainkey.foilen.com"));
+        Assert.assertEquals(null, CloudAzureService.dnsSubDomain("foilen.com", "test.another.com"));
+        Assert.assertEquals(null, CloudAzureService.dnsSubDomain("foilen.com", "aaaaaa.com"));
+        Assert.assertEquals(null, CloudAzureService.dnsSubDomain("foilen.com", "en.com"));
+        Assert.assertEquals(null, CloudAzureService.dnsSubDomain("foilen.com", "somethingfoilen.com"));
     }
 
     @Test

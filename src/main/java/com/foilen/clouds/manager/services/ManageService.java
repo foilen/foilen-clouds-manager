@@ -96,6 +96,7 @@ public class ManageService extends AbstractBasics {
         return cloned;
     }
 
+    @SuppressWarnings("rawtypes")
     private void cleanup(Map cloned) {
 
         cloned.remove("id");

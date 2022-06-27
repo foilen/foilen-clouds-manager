@@ -38,6 +38,11 @@ import com.foilen.clouds.manager.services.model.json.AzSubscription;
 import com.foilen.databasetools.connection.JdbcUriConfigConnection;
 import com.foilen.databasetools.manage.mariadb.MariadbManageProcess;
 import com.foilen.databasetools.manage.mariadb.MariadbManagerConfig;
+import com.foilen.infra.api.request.RequestResourceSearch;
+import com.foilen.infra.api.response.ResponseResourceBuckets;
+import com.foilen.infra.api.service.InfraApiService;
+import com.foilen.infra.api.service.InfraApiServiceImpl;
+import com.foilen.infra.resource.dns.DnsEntry;
 import com.foilen.smalltools.JavaEnvironmentValues;
 import com.foilen.smalltools.crypt.bouncycastle.cert.RSACertificate;
 import com.foilen.smalltools.crypt.bouncycastle.cert.RSATools;
@@ -57,6 +62,8 @@ import org.bouncycastle.pkcs.PKCS12SafeBag;
 import org.bouncycastle.pkcs.bc.BcPKCS12MacCalculatorBuilder;
 import org.bouncycastle.pkcs.bc.BcPKCS12PBEOutputEncryptorBuilder;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS12SafeBagBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
@@ -70,6 +77,8 @@ import java.util.stream.Collectors;
 
 @Component
 public class CloudAzureService extends AbstractBasics {
+
+    private static final Logger logger = LoggerFactory.getLogger(CloudAzureService.class);
 
     private static final int ITERATION_COUNT = 2048;
     private AzureProfile profile;
@@ -240,7 +249,7 @@ public class CloudAzureService extends AbstractBasics {
         if (desired.getConfig() != null) {
             // Get what is currently present
             var currentEntries = dnsZoneEntryListIgnoreNs(currentResource);
-            var desiredEntries = computeDnsEntries(currentEntries, desired.getConfig());
+            var desiredEntries = computeDnsEntries(desiredResource.getName(), currentEntries, desired.getConfig());
 
             // Apply
             Set<Tuple2<String, String>> nameTypesToUpdate = new HashSet<>();
@@ -288,7 +297,7 @@ public class CloudAzureService extends AbstractBasics {
         return currentResource;
     }
 
-    protected List<RawDnsEntry> computeDnsEntries(List<RawDnsEntry> currentRawDnsEntries, DnsConfig desiredDnsConfig) {
+    protected static List<RawDnsEntry> computeDnsEntries(String domainName, List<RawDnsEntry> currentRawDnsEntries, DnsConfig desiredDnsConfig) {
         // Copy all the current entries if desired
         Map<String, Set<RawDnsEntry>> desiredEntriesByNameType = new HashMap<>();
         if (!desiredDnsConfig.isStartEmpty()) {
@@ -302,22 +311,51 @@ public class CloudAzureService extends AbstractBasics {
         // Compute the desired entries
         List<DnsEntryConfig> configs = desiredDnsConfig.getConfigs() == null ? Collections.emptyList() : desiredDnsConfig.getConfigs();
         for (var configEntries : configs) {
+
+            // Raw entries
             if (configEntries.getRawDnsEntries() != null) {
+                applyRawDnsEntriesOnMap(desiredEntriesByNameType, configEntries.getConflictResolution(), configEntries.getRawDnsEntries());
+            }
 
-                // Remove any existing ones if OVERWRITE
-                if (configEntries.getConflictResolution() == ConflictResolution.OVERWRITE) {
-                    for (RawDnsEntry it : configEntries.getRawDnsEntries()) {
-                        String nameType = it.getName() + "|" + it.getType();
-                        desiredEntriesByNameType.remove(nameType);
-                    }
+            // Foilen Cloud
+            if (configEntries.getFoilenCloudDnsEntries() != null) {
+
+                for (var it : configEntries.getFoilenCloudDnsEntries()) {
+                    // Get all entries from Foilen Cloud
+                    logger.info("Get Foilen Cloud DNS entries for domain {}", it.getDomainName());
+                    InfraApiService infraApiService = new InfraApiServiceImpl(it.getInfraBaseUrl(), it.getApiUser(), it.getApiKey());
+                    ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAllWithDetails(new RequestResourceSearch().setResourceType(DnsEntry.RESOURCE_TYPE));
+                    AssertTools.assertNotNull(resourceBuckets, "Problem getting the DNS entries - No response");
+                    AssertTools.assertTrue(resourceBuckets.isSuccess(), "Problem getting the DNS entries - Got an error");
+
+                    var rawDnsEntries = resourceBuckets.getItems().stream() //
+                            .map(resourceBucket -> JsonTools.clone(resourceBucket.getResourceDetails().getResource(), DnsEntry.class)) //
+                            .filter(dnsEntry -> dnsEntry.getName().endsWith(it.getDomainName())) //
+                            .map(dnsEntry -> {
+                                RawDnsEntry rawDnsEntry = new RawDnsEntry()
+                                        .setName(dnsEntry.getName())
+                                        .setType(dnsEntry.getType().name())
+                                        .setDetails(dnsEntry.getDetails())
+                                        .setTtl(300);
+                                switch (dnsEntry.getType()) {
+                                    case MX:
+                                        rawDnsEntry.setPriority(dnsEntry.getPriority());
+                                        break;
+                                    case SRV:
+                                        rawDnsEntry.setPriority(dnsEntry.getPriority());
+                                        rawDnsEntry.setWeight(dnsEntry.getWeight());
+                                        rawDnsEntry.setPort(dnsEntry.getPort());
+                                        break;
+                                    default:
+                                }
+                                return rawDnsEntry;
+                            }) //
+                            .sorted().distinct() //
+                            .collect(Collectors.toList());
+
+                    applyRawDnsEntriesOnMap(desiredEntriesByNameType, configEntries.getConflictResolution(), rawDnsEntries);
                 }
 
-                // Add entries
-                for (RawDnsEntry it : configEntries.getRawDnsEntries()) {
-                    String nameType = it.getName() + "|" + it.getType();
-                    CollectionsTools.getOrCreateEmptyHashSet(desiredEntriesByNameType, nameType, RawDnsEntry.class)
-                            .add(it);
-                }
             }
         }
 
@@ -329,9 +367,27 @@ public class CloudAzureService extends AbstractBasics {
 
         return desiredEntriesByNameType.values().stream()
                 .flatMap(Set::stream)
+                .filter(it -> dnsIsSubDomain(domainName, it.getName()))
                 .sorted().distinct()
                 .collect(Collectors.toList());
 
+    }
+
+    private static void applyRawDnsEntriesOnMap(Map<String, Set<RawDnsEntry>> desiredEntriesByNameType, ConflictResolution conflictResolution, List<RawDnsEntry> rawDnsEntries) {
+        // Remove any existing ones if OVERWRITE
+        if (conflictResolution == ConflictResolution.OVERWRITE) {
+            for (RawDnsEntry it : rawDnsEntries) {
+                String nameType = it.getName() + "|" + it.getType();
+                desiredEntriesByNameType.remove(nameType);
+            }
+        }
+
+        // Add entries
+        for (RawDnsEntry it : rawDnsEntries) {
+            String nameType = it.getName() + "|" + it.getType();
+            CollectionsTools.getOrCreateEmptyHashSet(desiredEntriesByNameType, nameType, RawDnsEntry.class)
+                    .add(it);
+        }
     }
 
     public Optional<AzureDnsZone> dnsZoneFindByName(String resourceGroupName, String dnsZoneName) {
@@ -459,13 +515,11 @@ public class CloudAzureService extends AbstractBasics {
 
         logger.info("Set {}/{}", entryName, entryType);
         String baseDomainName = dnsZone.name();
-        String subDomain = entryName;
-        if (StringTools.safeEquals(baseDomainName, subDomain)) {
-            subDomain = "@";
-        } else {
-            subDomain = subDomain.substring(0, subDomain.length() - 1 - baseDomainName.length());
+        String subDomain = dnsSubDomain(baseDomainName, entryName);
+        if (subDomain == null) {
+            logger.error("Skipping {} because it is not a subdomain of {}", entryName, baseDomainName);
+            return;
         }
-        final String subDomainFinal = subDomain;
         switch (entryType) {
             case "AAAA":
                 dnsZone.update() //
@@ -550,7 +604,7 @@ public class CloudAzureService extends AbstractBasics {
                     var update = new AtomicReference<>(dnsZone.update() //
                             .defineSrvRecordSet(subDomain) //
                             .withRecord(subDomain, rawDnsEntries.get(0).getPort(), rawDnsEntries.get(0).getPriority(), rawDnsEntries.get(0).getWeight()));
-                    forEachAllButFirst(rawDnsEntries, it -> update.set(update.get().withRecord(subDomainFinal, it.getPort(), it.getPriority(), it.getWeight())));
+                    forEachAllButFirst(rawDnsEntries, it -> update.set(update.get().withRecord(subDomain, it.getPort(), it.getPriority(), it.getWeight())));
                     update.get().withTimeToLive(rawDnsEntries.stream().map(RawDnsEntry::getTtl).reduce(172800L, Math::min)) //
                             .attach() //
                             .apply();
@@ -1055,6 +1109,33 @@ public class CloudAzureService extends AbstractBasics {
                 .apply();
         pfxFile.delete();
 
+    }
+
+    protected static boolean dnsIsSubDomain(String baseDomainName, String fullDomainName) {
+        if (fullDomainName.length() <= baseDomainName.length()) {
+            if (!baseDomainName.equals(fullDomainName)) {
+                return false;
+            }
+        } else if (!fullDomainName.endsWith("." + baseDomainName)) {
+            return false;
+        }
+        return true;
+    }
+
+    protected static String dnsSubDomain(String baseDomainName, String fullDomainName) {
+        String subDomain = fullDomainName;
+
+        // Not subdomain
+        if (!dnsIsSubDomain(baseDomainName, fullDomainName)) {
+            return null;
+        }
+
+        if (StringTools.safeEquals(baseDomainName, subDomain)) {
+            subDomain = "@";
+        } else {
+            subDomain = subDomain.substring(0, subDomain.length() - 1 - baseDomainName.length());
+        }
+        return subDomain;
     }
 
     private void fillRegion(ManageConfiguration config, HasRegion hasRegion) {

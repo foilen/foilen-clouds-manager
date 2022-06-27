@@ -17,6 +17,7 @@ import org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration;
 public class FoilenCloudsManagerApplication {
 
     public static void main(String[] args) {
+        System.setProperty("spring.xml.ignore", "true");
         SpringApplication.run(FoilenCloudsManagerApplication.class, args);
     }
 
