@@ -29,7 +29,6 @@ public class CloudAzureServiceTest {
 
     @Test
     public void testComputeDnsEntries_StartEmpty() {
-        var service = new CloudAzureService();
         List<RawDnsEntry> initial = Arrays.asList(
                 new RawDnsEntry().setName("a.example.com").setType("TXT").setDetails("ABC"),
                 new RawDnsEntry().setName("a.example.com").setType("TXT").setDetails("DEF"),
@@ -77,7 +76,7 @@ public class CloudAzureServiceTest {
         ));
         config.setStartEmpty(true);
 
-        var actual = service.computeDnsEntries("example.com", initial, config);
+        var actual = CloudAzureService.computeDnsEntries("example.com", initial, config);
 
         List<RawDnsEntry> expected = Arrays.asList(
                 new RawDnsEntry().setName("a.example.com").setType("A").setDetails("127.0.0.10"),
@@ -100,8 +99,8 @@ public class CloudAzureServiceTest {
         AssertTools.assertJsonComparison(expected, actual);
     }
 
+    @Test
     public void testComputeDnsEntries_NotStartEmpty() {
-        var service = new CloudAzureService();
         List<RawDnsEntry> initial = Arrays.asList(
                 new RawDnsEntry().setName("a.example.com").setType("TXT").setDetails("ABC"),
                 new RawDnsEntry().setName("a.example.com").setType("TXT").setDetails("DEF"),
@@ -149,7 +148,7 @@ public class CloudAzureServiceTest {
         ));
         config.setStartEmpty(false);
 
-        var actual = service.computeDnsEntries("example.com", initial, config);
+        var actual = CloudAzureService.computeDnsEntries("example.com", initial, config);
 
         List<RawDnsEntry> expected = Arrays.asList(
                 new RawDnsEntry().setName("a.example.com").setType("TXT").setDetails("ABC"),
@@ -184,8 +183,7 @@ public class CloudAzureServiceTest {
 
     @Test
     public void testComputeDnsEntries_MergeTtls() {
-        var service = new CloudAzureService();
-        List<RawDnsEntry> initial = Arrays.asList();
+        List<RawDnsEntry> initial = List.of();
 
         DnsConfig config = new DnsConfig();
         config.setConfigs(Arrays.asList(
@@ -207,7 +205,7 @@ public class CloudAzureServiceTest {
         ));
         config.setStartEmpty(true);
 
-        var actual = service.computeDnsEntries("example.com", initial, config);
+        var actual = CloudAzureService.computeDnsEntries("example.com", initial, config);
 
         List<RawDnsEntry> expected = Arrays.asList(
                 new RawDnsEntry().setName("a.example.com").setType("TXT").setDetails("ABC").setTtl(20),

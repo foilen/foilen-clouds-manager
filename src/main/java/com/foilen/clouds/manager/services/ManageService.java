@@ -34,21 +34,11 @@ public class ManageService extends AbstractBasics {
     }
 
     public void manage(ManageConfiguration config) {
-        config.getAzureResourceGroups().forEach(it -> {
-            cloudAzureService.resourceGroupManage(it);
-        });
-        config.getAzureKeyVaults().forEach(it -> {
-            cloudAzureService.keyVaultManage(config, it);
-        });
-        config.getAzureApplicationServicePlans().forEach(it -> {
-            cloudAzureService.applicationServicePlanManage(config, it);
-        });
-        config.getAzureMariadbs().forEach(it -> {
-            cloudAzureService.mariadbManage(config, it);
-        });
-        config.getAzureDnsZones().forEach(it -> {
-            cloudAzureService.dnsZoneManage(config, it);
-        });
+        config.getAzureResourceGroups().forEach(it -> cloudAzureService.resourceGroupManage(it));
+        config.getAzureKeyVaults().forEach(it -> cloudAzureService.keyVaultManage(config, it));
+        config.getAzureApplicationServicePlans().forEach(it -> cloudAzureService.applicationServicePlanManage(config, it));
+        config.getAzureMariadbs().forEach(it -> cloudAzureService.mariadbManage(config, it));
+        config.getAzureDnsZones().forEach(it -> cloudAzureService.dnsZoneManage(config, it));
     }
 
     public void export(String file) {
@@ -96,7 +86,7 @@ public class ManageService extends AbstractBasics {
         return cloned;
     }
 
-    @SuppressWarnings("rawtypes")
+    @SuppressWarnings({"rawtypes", "unchecked"})
     private void cleanup(Map cloned) {
 
         cloned.remove("id");

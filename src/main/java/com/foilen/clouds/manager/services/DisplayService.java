@@ -13,6 +13,4 @@ public interface DisplayService {
 
     void display(String text);
 
-    void displayResource(int indentation, Object resource);
-
 }

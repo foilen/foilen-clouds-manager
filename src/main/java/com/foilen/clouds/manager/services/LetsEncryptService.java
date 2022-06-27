@@ -134,7 +134,7 @@ public class LetsEncryptService extends AbstractBasics {
                 Dns01Challenge dnsChallenge = null;
                 List<String> availableChallenges = new ArrayList<>();
                 for (Authorization auth : order.getAuthorizations()) {
-                    auth.getChallenges().stream().map(it -> it.getType()).forEach(it -> availableChallenges.add(it));
+                    auth.getChallenges().stream().map(Challenge::getType).forEach(availableChallenges::add);
                     dnsChallenge = auth.findChallenge(Dns01Challenge.TYPE);
                 }
                 if (dnsChallenge == null) {
@@ -160,7 +160,7 @@ public class LetsEncryptService extends AbstractBasics {
                     if (records == null || records.length == 0) {
                         logger.info("{} not yet visible on DNS. Wait 10 seconds", challengeDnsDomain);
                     } else {
-                        boolean hasRightValue = Arrays.asList(records).stream().flatMap(record -> ((TXTRecord) record).getStrings().stream()).anyMatch(it -> StringTools.safeEquals(digest, it));
+                        boolean hasRightValue = Arrays.stream(records).flatMap(record -> ((TXTRecord) record).getStrings().stream()).anyMatch(it -> StringTools.safeEquals(digest, it));
                         if (hasRightValue) {
                             logger.info("{} is visible on DNS and with the right value. Continue", challengeDnsDomain);
                             break;

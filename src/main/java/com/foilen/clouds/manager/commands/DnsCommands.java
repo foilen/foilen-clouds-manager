@@ -79,7 +79,7 @@ public class DnsCommands extends AbstractBasics {
         for (Field field : ReflectionTools.allFields(Type.class)) {
             try {
                 typeById.put(field.getInt(null), field.getName());
-            } catch (Exception e) {
+            } catch (Exception ignored) {
             }
         }
 
@@ -148,7 +148,7 @@ public class DnsCommands extends AbstractBasics {
                                 break;
                             case Type.TXT:
                                 ((TXTRecord) record).getStrings().forEach(it -> {
-                                    dnsEntry.setDetails(it.toString());
+                                    dnsEntry.setDetails(it);
                                     dnsEntries.add(JsonTools.clone(dnsEntry));
                                 });
                                 break;
@@ -167,7 +167,6 @@ public class DnsCommands extends AbstractBasics {
                                 break;
                             default:
                                 logger.error("Unknown type {} for {}", typeName, nextHostname);
-                                continue;
                         }
 
                     }

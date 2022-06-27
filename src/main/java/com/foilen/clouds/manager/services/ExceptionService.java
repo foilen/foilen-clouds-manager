@@ -17,6 +17,9 @@ import com.foilen.smalltools.tools.CollectionsTools;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.util.Comparator;
+import java.util.Map;
+
 @Component
 public class ExceptionService {
 
@@ -82,12 +85,8 @@ public class ExceptionService {
 
         if (!formResult.getValidationErrorsByField().isEmpty()) {
             formResult.getValidationErrorsByField().entrySet().stream() //
-                    .sorted((a, b) -> a.getKey().compareTo(b.getKey())) //
-                    .forEach(entry -> {
-                        entry.getValue().stream().sorted().forEach(it -> {
-                            displayService.display("\t[" + entry.getKey() + "] " + it);
-                        });
-                    });
+                    .sorted(Map.Entry.comparingByKey()) //
+                    .forEach(entry -> entry.getValue().stream().sorted().forEach(it -> displayService.display("\t[" + entry.getKey() + "] " + it)));
         }
     }
 

@@ -26,22 +26,11 @@ public class CloudService extends AbstractBasics {
     @Autowired
     private CloudAzureService cloudAzureService;
 
-    private void addGroupToListIfNotPresent(List<String> groups, Object item) {
-        if (item != null && item instanceof HasResourceGroup) {
-            String resourceGroup = ((HasResourceGroup) item).getResourceGroup();
-            if (resourceGroup != null) {
-                if (!groups.contains(resourceGroup)) {
-                    groups.add(resourceGroup);
-                }
-            }
-        }
-    }
-
     private String azureKeyFullName(String namespace, String name) {
         return namespace + "--" + name;
     }
 
-    public List<RawDnsEntry> dnsListEntries(DnsZone dnsZone, String hostname) {
+    public List<RawDnsEntry> dnsListEntries(DnsZone dnsZone) {
 
         switch (dnsZone.getProvider()) {
             case AZURE:
@@ -61,14 +50,6 @@ public class CloudService extends AbstractBasics {
 
         throw new CliException("Unknown provider");
 
-    }
-
-    public CloudAzureService getCloudAzureService() {
-        return cloudAzureService;
-    }
-
-    public void setCloudAzureService(CloudAzureService cloudAzureService) {
-        this.cloudAzureService = cloudAzureService;
     }
 
     public void pushCertificate(String hostname, WebApp httpsWebApp, RSACertificate caRsaCertificate, RSACertificate rsaCertificate, String pfxPassword) {

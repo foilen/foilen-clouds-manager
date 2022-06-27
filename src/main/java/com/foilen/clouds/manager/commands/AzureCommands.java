@@ -73,15 +73,13 @@ public class AzureCommands {
 
         System.out.println("---[ Secrets in keyvault " + keyVaultName + " ]---");
         cloudAzureService.keyVaultSecretList(azureKeyVault).streamByPage() //
-                .forEach(secrets -> {
-                    secrets.getElements().forEach(secret -> {
-                        if (showValues) {
-                            System.out.println(secret.name() + " : " + secret.getValue());
-                        } else {
-                            System.out.println(secret.name());
-                        }
-                    });
-                });
+                .forEach(secrets -> secrets.getElements().forEach(secret -> {
+                    if (showValues) {
+                        System.out.println(secret.name() + " : " + secret.getValue());
+                    } else {
+                        System.out.println(secret.name());
+                    }
+                }));
 
     }
 

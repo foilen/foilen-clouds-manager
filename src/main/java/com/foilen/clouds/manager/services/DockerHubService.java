@@ -32,12 +32,9 @@ public class DockerHubService extends AbstractBasics {
                 .filter(it -> !"latest".equals(it.getName())) //
                 .findFirst();
 
-        if (tag.isPresent()) {
-            return new OnlineFileDetails() //
-                    .setVersion(tag.get().getName());
-        }
+        return tag.map(dockerHubTag -> new OnlineFileDetails() //
+                .setVersion(dockerHubTag.getName())).orElse(null);
 
-        return null;
     }
 
 }

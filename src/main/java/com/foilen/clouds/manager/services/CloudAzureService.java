@@ -84,7 +84,6 @@ public class CloudAzureService extends AbstractBasics {
     private AzureProfile profile;
     private TokenCredential tokenCredential;
     private AzureResourceManager azureResourceManager;
-    private String defaultSubscriptionId;
     private String userName;
 
     protected static AzProfileDetails getAzureProfile(String azureProfileFile) {
@@ -186,13 +185,8 @@ public class CloudAzureService extends AbstractBasics {
 
     protected static boolean dnsIsSubDomain(String baseDomainName, String fullDomainName) {
         if (fullDomainName.length() <= baseDomainName.length()) {
-            if (!baseDomainName.equals(fullDomainName)) {
-                return false;
-            }
-        } else if (!fullDomainName.endsWith("." + baseDomainName)) {
-            return false;
-        }
-        return true;
+            return baseDomainName.equals(fullDomainName);
+        } else return fullDomainName.endsWith("." + baseDomainName);
     }
 
     protected static String dnsSubDomain(String baseDomainName, String fullDomainName) {
@@ -238,7 +232,7 @@ public class CloudAzureService extends AbstractBasics {
 
     }
 
-    public AzureApplicationServicePlan applicationServicePlanManage(ManageConfiguration config, AzureApplicationServicePlan desired) {
+    public void applicationServicePlanManage(ManageConfiguration config, AzureApplicationServicePlan desired) {
 
         AssertTools.assertNotNull(desired.getName(), "name must be provided");
 
@@ -293,8 +287,6 @@ public class CloudAzureService extends AbstractBasics {
             }
         }
 
-        return current;
-
     }
 
     public Optional<com.foilen.clouds.manager.services.model.DnsZone> dnsFindById(String azureDnsZoneId) {
@@ -324,7 +316,7 @@ public class CloudAzureService extends AbstractBasics {
 
     }
 
-    public AzureDnsZone dnsZoneManage(ManageConfiguration config, AzureDnsZoneManageConfiguration desired) {
+    public void dnsZoneManage(ManageConfiguration config, AzureDnsZoneManageConfiguration desired) {
 
         init();
 
@@ -376,7 +368,7 @@ public class CloudAzureService extends AbstractBasics {
             ListsComparator.compareStreams(
                     currentEntries.stream(),
                     desiredEntries.stream(),
-                    new ListComparatorHandler<RawDnsEntry, RawDnsEntry>() {
+                    new ListComparatorHandler<>() {
                         @Override
                         public void both(RawDnsEntry current, RawDnsEntry desired) {
                             // Keep
@@ -414,7 +406,6 @@ public class CloudAzureService extends AbstractBasics {
             }
         }
 
-        return currentResource;
     }
 
     public Optional<AzureDnsZone> dnsZoneFindByName(String resourceGroupName, String dnsZoneName) {
@@ -505,16 +496,12 @@ public class CloudAzureService extends AbstractBasics {
                 ));
             }
             if (innerModel.txtRecords() != null) {
-                innerModel.txtRecords().forEach(r -> {
-                    r.value().forEach(v -> {
-                        rawDnsEntries.add(new RawDnsEntry() //
-                                .setName(trimDot(record.fqdn())) //
-                                .setType(record.recordType().name()) //
-                                .setDetails(v) //
-                                .setTtl(record.timeToLive()) //
-                        );
-                    });
-                });
+                innerModel.txtRecords().forEach(r -> r.value().forEach(v -> rawDnsEntries.add(new RawDnsEntry() //
+                        .setName(trimDot(record.fqdn())) //
+                        .setType(record.recordType().name()) //
+                        .setDetails(v) //
+                        .setTtl(record.timeToLive()) //
+                )));
             }
         });
 
@@ -669,7 +656,7 @@ public class CloudAzureService extends AbstractBasics {
                     AzSubscription subscription = azProfileDetails.getSubscriptions().get(0);
                     String tenantId = subscription.getTenantId();
                     userName = subscription.getUser().getName();
-                    defaultSubscriptionId = subscription.getId();
+                    String defaultSubscriptionId = subscription.getId();
                     logger.info("Using tenant id {} and user name {}", tenantId, userName);
                     profile = new AzureProfile(tenantId, defaultSubscriptionId, AzureEnvironment.AZURE);
                 }
@@ -838,7 +825,7 @@ public class CloudAzureService extends AbstractBasics {
         }
     }
 
-    public AzureKeyVault keyVaultManage(ManageConfiguration config, AzureKeyVault desired) {
+    public void keyVaultManage(ManageConfiguration config, AzureKeyVault desired) {
 
         AssertTools.assertNotNull(desired.getName(), "name must be provided");
 
@@ -870,8 +857,6 @@ public class CloudAzureService extends AbstractBasics {
                 throw new ManageUnrecoverableException();
             }
         }
-
-        return current;
 
     }
 
@@ -922,7 +907,7 @@ public class CloudAzureService extends AbstractBasics {
         }
     }
 
-    public AzureMariadb mariadbManage(ManageConfiguration config, AzureMariadbManageConfiguration desired) {
+    public void mariadbManage(ManageConfiguration config, AzureMariadbManageConfiguration desired) {
 
         var desiredResource = desired.getResource();
 
@@ -1000,8 +985,6 @@ public class CloudAzureService extends AbstractBasics {
             }
         }
 
-        return currentResource;
-
     }
 
     public List<AzureResourceGroup> resourceGroupFindAll() {
@@ -1028,7 +1011,7 @@ public class CloudAzureService extends AbstractBasics {
         }
     }
 
-    public AzureResourceGroup resourceGroupManage(AzureResourceGroup desired) {
+    public void resourceGroupManage(AzureResourceGroup desired) {
         AssertTools.assertNotNull(desired.getName(), "name must be provided");
         AssertTools.assertNotNull(desired.getRegion(), "region must be provided");
 
@@ -1052,8 +1035,6 @@ public class CloudAzureService extends AbstractBasics {
                 throw new ManageUnrecoverableException();
             }
         }
-
-        return current;
 
     }
 

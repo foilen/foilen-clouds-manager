@@ -19,6 +19,7 @@ import org.jsoup.select.Elements;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.util.Objects;
 
 @Component
 public class MavenCentralService extends AbstractBasics {
@@ -34,12 +35,12 @@ public class MavenCentralService extends AbstractBasics {
                     .filter(it -> it.length == 3) //
                     .map(it -> {
                         try {
-                            return new int[]{Integer.valueOf(it[0]), Integer.valueOf(it[1]), Integer.valueOf(it[2])};
+                            return new int[]{Integer.parseInt(it[0]), Integer.parseInt(it[1]), Integer.parseInt(it[2])};
                         } catch (NumberFormatException e) {
                             return null;
                         }
                     }) //
-                    .filter(it -> it != null) //
+                    .filter(Objects::nonNull) //
                     .sorted((a, b) -> ComparisonChain.start() //
                             .compare(b[0], a[0]) //
                             .compare(b[1], a[1]) //
@@ -51,10 +52,9 @@ public class MavenCentralService extends AbstractBasics {
             // Get the jar
             String jarUrl = "https://repo1.maven.org/maven2/com/foilen/" + packageName + "/" + version + "/" + packageName + "-" + version + ".jar";
 
-            OnlineFileDetails onlineFileDetails = new OnlineFileDetails();
-            onlineFileDetails.setJarUrl(jarUrl);
-            onlineFileDetails.setVersion(version);
-            return onlineFileDetails;
+            return new OnlineFileDetails()
+                    .setJarUrl(jarUrl)
+                    .setVersion(version);
         } catch (IOException e) {
             throw new CliException("Problem getting the folder", e);
         }
