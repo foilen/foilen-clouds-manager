@@ -39,6 +39,7 @@ public class ManageService extends AbstractBasics {
         config.getAzureApplicationServicePlans().forEach(it -> cloudAzureService.applicationServicePlanManage(config, it));
         config.getAzureMariadbs().forEach(it -> cloudAzureService.mariadbManage(config, it));
         config.getAzureDnsZones().forEach(it -> cloudAzureService.dnsZoneManage(config, it));
+        config.getAzureStorageAccounts().forEach(it -> cloudAzureService.storageAccountManage(config, it));
     }
 
     public void export(String file) {
@@ -74,6 +75,9 @@ public class ManageService extends AbstractBasics {
                 )
                 .collect(Collectors.toList())
         );
+
+        logger.info("Getting storage accounts");
+        config.setAzureStorageAccounts(cloudAzureService.storageAccountList());
 
         logger.info("Export to {}", file);
         var json = JsonTools.prettyPrintWithoutNulls(cleanup(config));

@@ -29,6 +29,8 @@ import com.azure.resourcemanager.keyvault.models.Secret;
 import com.azure.resourcemanager.keyvault.models.Vault;
 import com.azure.resourcemanager.mariadb.MariaDBManager;
 import com.azure.resourcemanager.mariadb.models.*;
+import com.azure.resourcemanager.storage.models.SkuName;
+import com.azure.resourcemanager.storage.models.StorageAccountSkuType;
 import com.foilen.clouds.manager.CliException;
 import com.foilen.clouds.manager.ManageUnrecoverableException;
 import com.foilen.clouds.manager.commands.model.RawDnsEntry;
@@ -1036,6 +1038,81 @@ public class CloudAzureService extends AbstractBasics {
             }
         }
 
+    }
+
+    public Optional<AzureStorageAccount> storageAccountFindByName(String resourceGroupName, String storageAccountName) {
+
+        init();
+
+        logger.info("Get Storage Account {} / {}", resourceGroupName, storageAccountName);
+        try {
+            var storageAccount = azureResourceManager.storageAccounts().getByResourceGroup(resourceGroupName, storageAccountName);
+            return Optional.of(AzureStorageAccount.from(storageAccount));
+        } catch (ManagementException e) {
+            if (StringTools.safeEquals(e.getValue().getCode(), AzureConstants.RESOURCE_NOT_FOUND)) {
+                return Optional.empty();
+            }
+            throw e;
+        }
+
+    }
+
+    public List<AzureStorageAccount> storageAccountList() {
+
+        init();
+
+        logger.info("List Storage Accounts");
+        var it = azureResourceManager.storageAccounts().list();
+        return it.stream()
+                .map(AzureStorageAccount::from)
+                .sorted((a, b) -> StringTools.safeComparisonNullFirst(a.getName(), b.getName()))
+                .collect(Collectors.toList());
+    }
+
+    public void storageAccountManage(ManageConfiguration config, AzureStorageAccount desired) {
+
+        AssertTools.assertNotNull(desired.getName(), "name must be provided");
+
+        if (Strings.isNullOrEmpty(desired.getResourceGroup())) {
+            fillResourceGroup(config, desired);
+        }
+        if (Strings.isNullOrEmpty(desired.getRegion())) {
+            fillRegion(config, desired);
+        }
+
+        AssertTools.assertNotNull(desired.getResourceGroup(), "resource group must be provided");
+        AssertTools.assertNotNull(desired.getRegion(), "region must be provided");
+
+        StorageAccountSkuType sku;
+        if (desired.getSkuName() == null) {
+            sku = StorageAccountSkuType.STANDARD_LRS;
+        } else {
+            sku = StorageAccountSkuType.fromSkuName(SkuName.fromString(desired.getSkuName()));
+        }
+
+        logger.info("Check {}", desired);
+        var current = storageAccountFindByName(desired.getResourceGroup(), desired.getName()).orElse(null);
+        if (current == null) {
+            // create
+            logger.info("Create: {}", desired);
+            azureResourceManager.storageAccounts().define(desired.getName())
+                    .withRegion(desired.getRegion())
+                    .withExistingResourceGroup(desired.getResourceGroup())
+                    .withSku(sku)
+                    .withLargeFileShares(desired.getLargeFileShares() == null ? false : desired.getLargeFileShares())
+                    .create();
+        } else {
+            // Check
+            logger.info("Exists: {}", desired);
+
+            var differences = desired.differences(current);
+            if (!differences.isEmpty()) {
+                for (String difference : differences) {
+                    logger.error(difference);
+                }
+                throw new ManageUnrecoverableException();
+            }
+        }
     }
 
     public Optional<WebApp> webappFindById(String azureWebappId) {

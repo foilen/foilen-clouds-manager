@@ -19,6 +19,7 @@ public class ManageConfiguration {
     private List<AzureApplicationServicePlan> azureApplicationServicePlans = new ArrayList<>();
     private List<AzureMariadbManageConfiguration> azureMariadbs = new ArrayList<>();
     private List<AzureDnsZoneManageConfiguration> azureDnsZones = new ArrayList<>();
+    private List<AzureStorageAccount> azureStorageAccounts = new ArrayList<>();
 
     public List<AzureResourceGroup> getAzureResourceGroups() {
         return azureResourceGroups;
@@ -58,5 +59,13 @@ public class ManageConfiguration {
 
     public void setAzureDnsZones(List<AzureDnsZoneManageConfiguration> azureDnsZones) {
         this.azureDnsZones = azureDnsZones;
+    }
+
+    public List<AzureStorageAccount> getAzureStorageAccounts() {
+        return azureStorageAccounts;
+    }
+
+    public void setAzureStorageAccounts(List<AzureStorageAccount> azureStorageAccounts) {
+        this.azureStorageAccounts = azureStorageAccounts;
     }
 }
