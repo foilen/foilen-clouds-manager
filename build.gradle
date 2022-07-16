@@ -48,6 +48,7 @@ dependencies {
 
     // Microsoft Azure
     implementation 'com.azure:azure-identity:1.5.2'
+    implementation 'com.azure:azure-storage-file-share:12.13.1'
     implementation "com.azure.resourcemanager:azure-resourcemanager:2.16.0"
     implementation "com.azure.resourcemanager:azure-resourcemanager-mariadb:1.0.0-beta.1"
 

@@ -9,6 +9,7 @@
  */
 package com.foilen.clouds.manager.services;
 
+import com.azure.core.credential.AzureNamedKeyCredential;
 import com.azure.core.credential.TokenCredential;
 import com.azure.core.exception.ResourceNotFoundException;
 import com.azure.core.http.policy.HttpLogDetailLevel;
@@ -31,6 +32,11 @@ import com.azure.resourcemanager.mariadb.MariaDBManager;
 import com.azure.resourcemanager.mariadb.models.*;
 import com.azure.resourcemanager.storage.models.SkuName;
 import com.azure.resourcemanager.storage.models.StorageAccountSkuType;
+import com.azure.storage.file.share.ShareServiceClient;
+import com.azure.storage.file.share.ShareServiceClientBuilder;
+import com.azure.storage.file.share.models.ShareAccessTier;
+import com.azure.storage.file.share.models.ShareProtocols;
+import com.azure.storage.file.share.options.ShareCreateOptions;
 import com.foilen.clouds.manager.CliException;
 import com.foilen.clouds.manager.ManageUnrecoverableException;
 import com.foilen.clouds.manager.commands.model.RawDnsEntry;
@@ -646,6 +652,64 @@ public class CloudAzureService extends AbstractBasics {
 
     }
 
+    public void storageFileShareCreate(String storageAccountId, AzureStorageFileShare storageFileShare) {
+        init();
+
+        logger.info("Create Storage File Share {} / {}", storageAccountId, storageFileShare);
+
+        var storageAccount = azureResourceManager.storageAccounts().getById(storageAccountId);
+        var key = storageAccount.getKeys().get(0).value();
+
+        ShareServiceClient shareServiceClient = new ShareServiceClientBuilder().endpoint(storageAccount.endPoints().primary().file())
+                .credential(new AzureNamedKeyCredential(storageAccount.name(), key))
+                .buildClient();
+
+        shareServiceClient.createShareWithResponse(storageFileShare.getName(), new ShareCreateOptions()
+                        .setQuotaInGb(storageFileShare.getQuotaInGB())
+                        .setAccessTier(ShareAccessTier.fromString(storageFileShare.getAccessTier()))
+                        .setProtocols(new ShareProtocols()
+                                .setSmbEnabled(storageFileShare.isSmbEnabled())
+                                .setNfsEnabled(storageFileShare.isNfsEnabled())
+                        )
+                ,
+                null, null
+        );
+    }
+
+    public void storageFileShareDelete(String storageAccountId, String fileShareName) {
+        init();
+
+        logger.info("Delete Storage File Share {} / {}", storageAccountId, fileShareName);
+
+        var storageAccount = azureResourceManager.storageAccounts().getById(storageAccountId);
+        var key = storageAccount.getKeys().get(0).value();
+
+        ShareServiceClient shareServiceClient = new ShareServiceClientBuilder().endpoint(storageAccount.endPoints().primary().file())
+                .credential(new AzureNamedKeyCredential(storageAccount.name(), key))
+                .buildClient();
+
+        shareServiceClient.deleteShare(fileShareName);
+    }
+
+    public List<AzureStorageFileShare> storageFileShareList(String storageAccountId) {
+
+        init();
+
+        logger.info("List Storage File Share for {}", storageAccountId);
+        var storageAccount = azureResourceManager.storageAccounts().getById(storageAccountId);
+        var key = storageAccount.getKeys().get(0).value();
+
+        ShareServiceClient shareServiceClient = new ShareServiceClientBuilder().endpoint(storageAccount.endPoints().primary().file())
+                .credential(new AzureNamedKeyCredential(storageAccount.name(), key))
+                .buildClient();
+
+        return shareServiceClient.listShares().stream()
+                .map(AzureStorageFileShare::from)
+                .sorted((a, b) -> StringTools.safeComparisonNullFirst(a.getName(), b.getName()))
+                .collect(Collectors.toList());
+
+    }
+
     private void init() {
 
         if (profile == null) {
@@ -1047,7 +1111,11 @@ public class CloudAzureService extends AbstractBasics {
         logger.info("Get Storage Account {} / {}", resourceGroupName, storageAccountName);
         try {
             var storageAccount = azureResourceManager.storageAccounts().getByResourceGroup(resourceGroupName, storageAccountName);
-            return Optional.of(AzureStorageAccount.from(storageAccount));
+            var azureStorageAccount = AzureStorageAccount.from(storageAccount);
+            azureStorageAccount.setAzureFileShares(
+                    storageFileShareList(azureStorageAccount.getId())
+            );
+            return Optional.of(azureStorageAccount);
         } catch (ManagementException e) {
             if (StringTools.safeEquals(e.getValue().getCode(), AzureConstants.RESOURCE_NOT_FOUND)) {
                 return Optional.empty();
@@ -1066,46 +1134,49 @@ public class CloudAzureService extends AbstractBasics {
         return it.stream()
                 .map(AzureStorageAccount::from)
                 .sorted((a, b) -> StringTools.safeComparisonNullFirst(a.getName(), b.getName()))
+                .peek(storageAccount -> storageAccount.setAzureFileShares(
+                        storageFileShareList(storageAccount.getId())
+                ))
                 .collect(Collectors.toList());
     }
 
-    public void storageAccountManage(ManageConfiguration config, AzureStorageAccount desired) {
+    public void storageAccountManage(ManageConfiguration config, AzureStorageAccount desiredResource) {
 
-        AssertTools.assertNotNull(desired.getName(), "name must be provided");
+        AssertTools.assertNotNull(desiredResource.getName(), "name must be provided");
 
-        if (Strings.isNullOrEmpty(desired.getResourceGroup())) {
-            fillResourceGroup(config, desired);
+        if (Strings.isNullOrEmpty(desiredResource.getResourceGroup())) {
+            fillResourceGroup(config, desiredResource);
         }
-        if (Strings.isNullOrEmpty(desired.getRegion())) {
-            fillRegion(config, desired);
+        if (Strings.isNullOrEmpty(desiredResource.getRegion())) {
+            fillRegion(config, desiredResource);
         }
 
-        AssertTools.assertNotNull(desired.getResourceGroup(), "resource group must be provided");
-        AssertTools.assertNotNull(desired.getRegion(), "region must be provided");
+        AssertTools.assertNotNull(desiredResource.getResourceGroup(), "resource group must be provided");
+        AssertTools.assertNotNull(desiredResource.getRegion(), "region must be provided");
 
         StorageAccountSkuType sku;
-        if (desired.getSkuName() == null) {
+        if (desiredResource.getSkuName() == null) {
             sku = StorageAccountSkuType.STANDARD_LRS;
         } else {
-            sku = StorageAccountSkuType.fromSkuName(SkuName.fromString(desired.getSkuName()));
+            sku = StorageAccountSkuType.fromSkuName(SkuName.fromString(desiredResource.getSkuName()));
         }
 
-        logger.info("Check {}", desired);
-        var current = storageAccountFindByName(desired.getResourceGroup(), desired.getName()).orElse(null);
-        if (current == null) {
+        logger.info("Check {}", desiredResource);
+        var currentResource = storageAccountFindByName(desiredResource.getResourceGroup(), desiredResource.getName()).orElse(null);
+        if (currentResource == null) {
             // create
-            logger.info("Create: {}", desired);
-            azureResourceManager.storageAccounts().define(desired.getName())
-                    .withRegion(desired.getRegion())
-                    .withExistingResourceGroup(desired.getResourceGroup())
+            logger.info("Create: {}", desiredResource);
+            currentResource = AzureStorageAccount.from(azureResourceManager.storageAccounts().define(desiredResource.getName())
+                    .withRegion(desiredResource.getRegion())
+                    .withExistingResourceGroup(desiredResource.getResourceGroup())
                     .withSku(sku)
-                    .withLargeFileShares(desired.getLargeFileShares() == null ? false : desired.getLargeFileShares())
-                    .create();
+                    .withLargeFileShares(desiredResource.getLargeFileShares() == null ? false : desiredResource.getLargeFileShares())
+                    .create());
         } else {
             // Check
-            logger.info("Exists: {}", desired);
+            logger.info("Exists: {}", desiredResource);
 
-            var differences = desired.differences(current);
+            var differences = desiredResource.differences(currentResource);
             if (!differences.isEmpty()) {
                 for (String difference : differences) {
                     logger.error(difference);
@@ -1113,6 +1184,44 @@ public class CloudAzureService extends AbstractBasics {
                 throw new ManageUnrecoverableException();
             }
         }
+
+        // File shares
+        final var fCurrentResource = currentResource;
+        logger.info("Managing file shares on: {}", currentResource.getId());
+        ListsComparator.compareStreams(
+                currentResource.getAzureFileShares().stream().sorted(),
+                desiredResource.getAzureFileShares().stream().sorted(),
+                (a, b) -> a.getName().compareTo(b.getName()),
+                new ListComparatorHandler<>() {
+                    @Override
+                    public void both(AzureStorageFileShare currentStorageFileShare, AzureStorageFileShare desiredStorageFileShare) {
+                        // Compare
+                        logger.info("Exists: {}", desiredStorageFileShare);
+
+                        var differences = desiredStorageFileShare.differences(currentStorageFileShare);
+                        if (!differences.isEmpty()) {
+                            for (String difference : differences) {
+                                logger.error(difference);
+                            }
+                            throw new ManageUnrecoverableException();
+                        }
+                    }
+
+                    @Override
+                    public void leftOnly(AzureStorageFileShare currentStorageFileShare) {
+                        // Remove
+                        storageFileShareDelete(fCurrentResource.getId(), currentStorageFileShare.getName());
+                    }
+
+                    @Override
+                    public void rightOnly(AzureStorageFileShare desiredStorageFileShare) {
+                        // Create
+                        storageFileShareCreate(fCurrentResource.getId(), desiredStorageFileShare);
+                    }
+                }
+        );
+
+
     }
 
     public Optional<WebApp> webappFindById(String azureWebappId) {

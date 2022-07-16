@@ -21,6 +21,8 @@ public class AzureStorageAccount extends CommonResource implements StorageAccoun
     private String skuName;
     private Boolean largeFileShares;
 
+    private List<AzureStorageFileShare> azureFileShares = new ArrayList<>();
+
     public AzureStorageAccount() {
         super(CloudProvider.AZURE);
     }
@@ -86,5 +88,13 @@ public class AzureStorageAccount extends CommonResource implements StorageAccoun
 
     public void setLargeFileShares(Boolean largeFileShares) {
         this.largeFileShares = largeFileShares;
+    }
+
+    public List<AzureStorageFileShare> getAzureFileShares() {
+        return azureFileShares;
+    }
+
+    public void setAzureFileShares(List<AzureStorageFileShare> azureFileShares) {
+        this.azureFileShares = azureFileShares;
     }
 }
