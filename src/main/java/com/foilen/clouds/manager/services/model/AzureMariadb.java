@@ -19,7 +19,7 @@ import java.util.List;
 public class AzureMariadb extends CommonResource implements Mariadb, HasResourceGroup {
 
     private String resourceGroup;
-    private String region;
+    private String regionId;
     private String name;
     private String version;
     private String sslEnforcement;
@@ -44,7 +44,7 @@ public class AzureMariadb extends CommonResource implements Mariadb, HasResource
                 item.setResourceGroup(parts[4]);
             }
         }
-        item.region = server.regionName();
+        item.regionId = server.regionName();
         item.version = server.version().toString();
         item.sslEnforcement = server.sslEnforcement().name();
         item.minimalTlsVersion = server.minimalTlsVersion().toString();
@@ -58,7 +58,7 @@ public class AzureMariadb extends CommonResource implements Mariadb, HasResource
     public List<String> differences(AzureMariadb current) {
         var differences = new ArrayList<String>();
         different(differences, "Mariadb", name, "resourceGroup", resourceGroup, current.resourceGroup);
-        different(differences, "Mariadb", name, "region", region, current.region);
+        different(differences, "Mariadb", name, "regionId", regionId, current.regionId);
         different(differences, "Mariadb", name, "version", version, current.version);
         different(differences, "Mariadb", name, "sslEnforcement", sslEnforcement, current.sslEnforcement);
         different(differences, "Mariadb", name, "minimalTlsVersion", minimalTlsVersion, current.minimalTlsVersion);
@@ -78,12 +78,12 @@ public class AzureMariadb extends CommonResource implements Mariadb, HasResource
     }
 
     @Override
-    public String getRegion() {
-        return region;
+    public String getRegionId() {
+        return regionId;
     }
 
-    public void setRegion(String region) {
-        this.region = region;
+    public void setRegionId(String regionId) {
+        this.regionId = regionId;
     }
 
     @Override

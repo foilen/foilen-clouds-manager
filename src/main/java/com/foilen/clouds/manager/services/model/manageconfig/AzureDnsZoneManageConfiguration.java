@@ -7,15 +7,16 @@
     http://opensource.org/licenses/MIT
 
  */
-package com.foilen.clouds.manager.services.model;
+package com.foilen.clouds.manager.services.model.manageconfig;
 
+import com.foilen.clouds.manager.services.model.AzureDnsZone;
+import com.foilen.clouds.manager.services.model.DnsConfig;
 import com.foilen.smalltools.tools.AbstractBasics;
 
 public class AzureDnsZoneManageConfiguration extends AbstractBasics {
 
     private AzureDnsZone resource;
     private DnsConfig config;
-
 
     public AzureDnsZone getResource() {
         return resource;

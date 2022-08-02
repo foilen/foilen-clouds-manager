@@ -9,10 +9,11 @@
  */
 package com.foilen.clouds.manager.services;
 
-import com.foilen.clouds.manager.services.model.*;
-import com.foilen.smalltools.tools.AbstractBasics;
-import com.foilen.smalltools.tools.FileTools;
-import com.foilen.smalltools.tools.JsonTools;
+import com.foilen.clouds.manager.services.model.ConflictResolution;
+import com.foilen.clouds.manager.services.model.DnsConfig;
+import com.foilen.clouds.manager.services.model.DnsEntryConfig;
+import com.foilen.clouds.manager.services.model.manageconfig.*;
+import com.foilen.smalltools.tools.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -29,17 +30,67 @@ public class ManageService extends AbstractBasics {
 
     public void manage(String file) {
 
-        var config = JsonTools.readFromFile(file, ManageConfiguration.class);
-        manage(config);
+        try {
+            var config = JsonTools.readFromFile(file, ManageConfiguration.class);
+            manage(config);
+        } catch (Exception e) {
+            logger.error("Problem managing the resources", e);
+        }
     }
 
     public void manage(ManageConfiguration config) {
-        config.getAzureResourceGroups().forEach(it -> cloudAzureService.resourceGroupManage(it));
-        config.getAzureKeyVaults().forEach(it -> cloudAzureService.keyVaultManage(config, it));
-        config.getAzureApplicationServicePlans().forEach(it -> cloudAzureService.applicationServicePlanManage(config, it));
-        config.getAzureMariadbs().forEach(it -> cloudAzureService.mariadbManage(config, it));
-        config.getAzureDnsZones().forEach(it -> cloudAzureService.dnsZoneManage(config, it));
-        config.getAzureStorageAccounts().forEach(it -> cloudAzureService.storageAccountManage(config, it));
+
+        var globalContext = new ManageContext();
+
+        boolean retry = true;
+        var lastRetryHash = "";
+        var retrySameHashCount = 0;
+        while (retry) {
+
+            retry = false;
+
+            var currentContext = new ManageContext();
+            config.getAzureResourceGroups().forEach(it -> cloudAzureService.resourceGroupManage(currentContext, it));
+            config.getAzureKeyVaults().forEach(it -> cloudAzureService.keyVaultManage(currentContext, config, it));
+            config.getAzureApplicationServicePlans().forEach(it -> cloudAzureService.applicationServicePlanManage(currentContext, config, it));
+            config.getAzureMariadbs().forEach(it -> cloudAzureService.mariadbManage(currentContext, config, it));
+            config.getAzureDnsZones().forEach(it -> cloudAzureService.dnsZoneManage(currentContext, config, it));
+            config.getAzureStorageAccounts().forEach(it -> cloudAzureService.storageAccountManage(currentContext, config, it));
+            config.getAzureWebapps().forEach(it -> cloudAzureService.webappManage(currentContext, config, it));
+
+            // Retry logic
+            if (!currentContext.getNeedsNextStageHash().isEmpty()) {
+                if (StringTools.safeEquals(lastRetryHash, globalContext.getNeedsNextStageHash())) {
+                    ++retrySameHashCount;
+                    if (retrySameHashCount == 4) {
+                        logger.error("Needs to retry to proceed to next stage, but even after retry, it is not progressing. Not retrying");
+                    } else {
+                        retry = true;
+                        logger.info("Needs to retry to proceed to next stage. Retrying in 30 seconds");
+                        ThreadTools.sleep(30000);
+                    }
+                } else {
+                    retrySameHashCount = 0;
+                    lastRetryHash = currentContext.getNeedsNextStageHash();
+                    retry = true;
+                    logger.info("Needs to retry to proceed to next stage. Retrying in 15 seconds");
+                    ThreadTools.sleep(15000);
+                }
+            }
+
+            globalContext.setNeedsNextStageHash(currentContext.getNeedsNextStageHash());
+            globalContext.getModifications().addAll(currentContext.getModifications());
+
+        }
+
+        // Show summary of modifications
+        System.out.println("---[ Summary of modifications ]---");
+        globalContext.getModifications().forEach(it -> System.out.println(it));
+
+        if (!globalContext.getNeedsNextStageHash().isEmpty()) {
+            System.out.println("\nISSUE: Could not complete due to missing dependency");
+        }
+
     }
 
     public void export(String file) {
@@ -78,6 +129,14 @@ public class ManageService extends AbstractBasics {
 
         logger.info("Getting storage accounts");
         config.setAzureStorageAccounts(cloudAzureService.storageAccountList());
+
+        logger.info("Getting web applications");
+        config.setAzureWebapps(cloudAzureService.webappList().stream()
+                .map(it -> new AzureWebAppManageConfiguration()
+                        .setResource(it)
+                )
+                .collect(Collectors.toList())
+        );
 
         logger.info("Export to {}", file);
         var json = JsonTools.prettyPrintWithoutNulls(cleanup(config));

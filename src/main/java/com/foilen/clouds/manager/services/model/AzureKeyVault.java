@@ -19,7 +19,7 @@ public class AzureKeyVault extends CommonResource implements SecretStore, HasRes
 
     private String name;
     private String resourceGroup;
-    private String region;
+    private String regionId;
 
     public AzureKeyVault() {
         super(CloudProvider.AZURE);
@@ -30,14 +30,14 @@ public class AzureKeyVault extends CommonResource implements SecretStore, HasRes
         item.setId(vault.id());
         item.name = vault.name();
         item.resourceGroup = vault.resourceGroupName();
-        item.region = vault.region().name();
+        item.regionId = vault.regionName();
         return item;
     }
 
     public List<String> differences(AzureKeyVault current) {
         var differences = new ArrayList<String>();
         different(differences, "Key Vault", name, "resourceGroup", resourceGroup, current.resourceGroup);
-        different(differences, "Key Vault", name, "region", region, current.region);
+        different(differences, "Key Vault", name, "regionId", regionId, current.regionId);
         return differences;
     }
 
@@ -59,12 +59,12 @@ public class AzureKeyVault extends CommonResource implements SecretStore, HasRes
     }
 
     @Override
-    public String getRegion() {
-        return region;
+    public String getRegionId() {
+        return regionId;
     }
 
-    public void setRegion(String region) {
-        this.region = region;
+    public void setRegionId(String regionId) {
+        this.regionId = regionId;
     }
 
     @Override

@@ -14,6 +14,7 @@ import com.foilen.clouds.manager.services.model.ConflictResolution;
 import com.foilen.clouds.manager.services.model.DnsConfig;
 import com.foilen.clouds.manager.services.model.DnsEntryConfig;
 import com.foilen.clouds.manager.services.model.json.AzProfileDetails;
+import com.foilen.clouds.manager.services.model.manageconfig.ManageContext;
 import com.foilen.smalltools.test.asserts.AssertTools;
 import com.foilen.smalltools.tools.ResourceTools;
 import org.junit.Assert;
@@ -29,6 +30,10 @@ public class CloudAzureServiceTest {
 
     @Test
     public void testComputeDnsEntries_StartEmpty() {
+
+        var cloudAzureService = new CloudAzureService();
+        var context = new ManageContext();
+
         List<RawDnsEntry> initial = Arrays.asList(
                 new RawDnsEntry().setName("a.example.com").setType("TXT").setDetails("ABC"),
                 new RawDnsEntry().setName("a.example.com").setType("TXT").setDetails("DEF"),
@@ -76,7 +81,7 @@ public class CloudAzureServiceTest {
         ));
         config.setStartEmpty(true);
 
-        var actual = CloudAzureService.computeDnsEntries("example.com", initial, config);
+        var actual = cloudAzureService.computeDnsEntries(context, "example.com", initial, config);
 
         List<RawDnsEntry> expected = Arrays.asList(
                 new RawDnsEntry().setName("a.example.com").setType("A").setDetails("127.0.0.10"),
@@ -101,6 +106,10 @@ public class CloudAzureServiceTest {
 
     @Test
     public void testComputeDnsEntries_NotStartEmpty() {
+
+        var cloudAzureService = new CloudAzureService();
+        var context = new ManageContext();
+
         List<RawDnsEntry> initial = Arrays.asList(
                 new RawDnsEntry().setName("a.example.com").setType("TXT").setDetails("ABC"),
                 new RawDnsEntry().setName("a.example.com").setType("TXT").setDetails("DEF"),
@@ -148,7 +157,7 @@ public class CloudAzureServiceTest {
         ));
         config.setStartEmpty(false);
 
-        var actual = CloudAzureService.computeDnsEntries("example.com", initial, config);
+        var actual = cloudAzureService.computeDnsEntries(context, "example.com", initial, config);
 
         List<RawDnsEntry> expected = Arrays.asList(
                 new RawDnsEntry().setName("a.example.com").setType("TXT").setDetails("ABC"),
@@ -183,6 +192,10 @@ public class CloudAzureServiceTest {
 
     @Test
     public void testComputeDnsEntries_MergeTtls() {
+
+        var cloudAzureService = new CloudAzureService();
+        var context = new ManageContext();
+
         List<RawDnsEntry> initial = List.of();
 
         DnsConfig config = new DnsConfig();
@@ -205,7 +218,7 @@ public class CloudAzureServiceTest {
         ));
         config.setStartEmpty(true);
 
-        var actual = CloudAzureService.computeDnsEntries("example.com", initial, config);
+        var actual = cloudAzureService.computeDnsEntries(context, "example.com", initial, config);
 
         List<RawDnsEntry> expected = Arrays.asList(
                 new RawDnsEntry().setName("a.example.com").setType("TXT").setDetails("ABC").setTtl(20),

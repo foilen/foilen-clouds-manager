@@ -1,6 +1,6 @@
 plugins {
     id "com.github.ben-manes.versions" version "0.42.0"
-    id 'io.spring.dependency-management' version "1.0.11.RELEASE"
+    id 'io.spring.dependency-management' version "1.0.12.RELEASE"
     id 'org.springframework.boot' version "2.7.1"
 }
 
@@ -39,16 +39,16 @@ dependencies {
     implementation "org.apache.commons:commons-lang3"
     implementation "org.apache.httpcomponents:httpclient"
     implementation "org.freemarker:freemarker"
-    implementation "org.jsoup:jsoup:1.15.1"
-    implementation "org.shredzone.acme4j:acme4j-client:2.13"
-    implementation "org.shredzone.acme4j:acme4j-utils:2.13"
+    implementation "org.jsoup:jsoup:1.15.2"
+    implementation "org.shredzone.acme4j:acme4j-client:2.14"
+    implementation "org.shredzone.acme4j:acme4j-utils:2.14"
     implementation "org.springframework.data:spring-data-jpa"
     implementation "org.springframework.shell:spring-shell-starter:2.0.1.RELEASE"
     implementation "org.springframework:spring-web"
 
     // Microsoft Azure
-    implementation 'com.azure:azure-identity:1.5.2'
-    implementation 'com.azure:azure-storage-file-share:12.13.1'
+    implementation 'com.azure:azure-identity:1.5.3'
+    implementation 'com.azure:azure-storage-file-share:12.14.0'
     implementation "com.azure.resourcemanager:azure-resourcemanager:2.16.0"
     implementation "com.azure.resourcemanager:azure-resourcemanager-mariadb:1.0.0-beta.1"
 

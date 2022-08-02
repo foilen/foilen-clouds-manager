@@ -20,6 +20,9 @@ public class DnsEntryConfig extends AbstractBasics {
     private List<RawDnsEntry> rawDnsEntries;
     private List<FoilenCloudDnsEntries> foilenCloudDnsEntries;
 
+    private List<AzureUidDnsEntry> azureUidDnsEntry;
+    private List<AzureCustomDomainDnsEntry> azureCustomDomainDnsEntry;
+
     public ConflictResolution getConflictResolution() {
         return conflictResolution;
     }
@@ -44,6 +47,24 @@ public class DnsEntryConfig extends AbstractBasics {
 
     public DnsEntryConfig setFoilenCloudDnsEntries(List<FoilenCloudDnsEntries> foilenCloudDnsEntries) {
         this.foilenCloudDnsEntries = foilenCloudDnsEntries;
+        return this;
+    }
+
+    public List<AzureUidDnsEntry> getAzureUidDnsEntry() {
+        return azureUidDnsEntry;
+    }
+
+    public DnsEntryConfig setAzureUidDnsEntry(List<AzureUidDnsEntry> azureUidDnsEntry) {
+        this.azureUidDnsEntry = azureUidDnsEntry;
+        return this;
+    }
+
+    public List<AzureCustomDomainDnsEntry> getAzureCustomDomainDnsEntry() {
+        return azureCustomDomainDnsEntry;
+    }
+
+    public DnsEntryConfig setAzureCustomDomainDnsEntry(List<AzureCustomDomainDnsEntry> azureCustomDomainDnsEntry) {
+        this.azureCustomDomainDnsEntry = azureCustomDomainDnsEntry;
         return this;
     }
 }

@@ -7,11 +7,8 @@
     http://opensource.org/licenses/MIT
 
  */
-package com.foilen.clouds.manager.services.model;
+package com.foilen.clouds.manager.azureclient.model;
 
-public interface HasRegion {
+public class AzureSingleResource extends BaseApiResponseWithError {
 
-    String getRegionId();
-
-    void setRegionId(String region);
 }

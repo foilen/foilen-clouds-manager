@@ -7,8 +7,9 @@
     http://opensource.org/licenses/MIT
 
  */
-package com.foilen.clouds.manager.services.model;
+package com.foilen.clouds.manager.services.model.manageconfig;
 
+import com.foilen.clouds.manager.services.model.AzureMariadb;
 import com.foilen.databasetools.manage.mariadb.MariadbManagerConfig;
 
 public class AzureMariadbManageConfiguration {

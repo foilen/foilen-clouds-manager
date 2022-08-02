@@ -11,9 +11,9 @@ package com.foilen.clouds.manager.commands;
 
 import com.foilen.clouds.manager.services.CloudAzureService;
 import com.foilen.clouds.manager.services.LetsEncryptService;
+import com.foilen.clouds.manager.services.model.AzureWebApp;
 import com.foilen.clouds.manager.services.model.DnsZone;
 import com.foilen.clouds.manager.services.model.SecretStore;
-import com.foilen.clouds.manager.services.model.WebApp;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.shell.standard.ShellComponent;
 import org.springframework.shell.standard.ShellMethod;
@@ -49,8 +49,8 @@ public class LetsEncryptCommands {
             System.out.println("Unknown Secret Store");
             return;
         }
-        Optional<WebApp> httpsWebAppToPushCert = azureWebappId == null ? Optional.empty() : cloudAzureService.webappFindById(azureWebappId);
-        letsEncryptService.update(domain, dnsZone.get(), secretStore.get(), httpsWebAppToPushCert, staging, contactEmail);
+        Optional<AzureWebApp> httpsWebAppToPushCert = azureWebappId == null ? Optional.empty() : cloudAzureService.webappFindById(azureWebappId);
+        letsEncryptService.update(domain, dnsZone.get(), secretStore.get(), Optional.of(httpsWebAppToPushCert.get()), staging, contactEmail);
 
     }
 

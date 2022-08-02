@@ -17,7 +17,7 @@ import java.util.List;
 public class AzureApplicationServicePlan extends CommonResource implements DnsZone, HasResourceGroup, HasRegion {
 
     private String resourceGroup;
-    private String region;
+    private String regionId;
     private String name;
     private String pricingTierSize;
     private String operatingSystem;
@@ -33,7 +33,7 @@ public class AzureApplicationServicePlan extends CommonResource implements DnsZo
         item.setId(appServicePlan.id());
         item.name = appServicePlan.name();
         item.resourceGroup = appServicePlan.resourceGroupName();
-        item.region = appServicePlan.region().name();
+        item.regionId = appServicePlan.region().name();
 
         item.pricingTierSize = appServicePlan.pricingTier().toSkuDescription().size();
         item.operatingSystem = appServicePlan.operatingSystem().name();
@@ -45,7 +45,7 @@ public class AzureApplicationServicePlan extends CommonResource implements DnsZo
     public List<String> differences(AzureApplicationServicePlan current) {
         var differences = new ArrayList<String>();
         different(differences, "Application Service Plan", name, "resourceGroup", resourceGroup, current.resourceGroup);
-        different(differences, "Application Service Plan", name, "region", region, current.region);
+        different(differences, "Application Service Plan", name, "regionId", regionId, current.regionId);
         different(differences, "Application Service Plan", name, "pricingTierSize", pricingTierSize, current.pricingTierSize);
         different(differences, "Application Service Plan", name, "operatingSystem", operatingSystem, current.operatingSystem);
         different(differences, "Application Service Plan", name, "capacity", capacity, current.capacity);
@@ -63,12 +63,12 @@ public class AzureApplicationServicePlan extends CommonResource implements DnsZo
     }
 
     @Override
-    public String getRegion() {
-        return region;
+    public String getRegionId() {
+        return regionId;
     }
 
-    public void setRegion(String region) {
-        this.region = region;
+    public void setRegionId(String regionId) {
+        this.regionId = regionId;
     }
 
     @Override

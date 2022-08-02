@@ -7,11 +7,7 @@
     http://opensource.org/licenses/MIT
 
  */
-package com.foilen.clouds.manager.services.model;
+package com.foilen.clouds.manager.azureclient.model;
 
-public interface HasRegion {
-
-    String getRegionId();
-
-    void setRegionId(String region);
+public class AzureWebSiteConfigsResponse extends AzureListResource<AzureWebSiteConfig> {
 }

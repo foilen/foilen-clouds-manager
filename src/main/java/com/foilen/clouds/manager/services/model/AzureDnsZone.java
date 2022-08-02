@@ -15,7 +15,7 @@ import java.util.List;
 public class AzureDnsZone extends CommonResource implements DnsZone, HasResourceGroup {
 
     private String resourceGroup;
-    private String region;
+    private String regionId;
     private String name;
 
     public AzureDnsZone() {
@@ -27,14 +27,14 @@ public class AzureDnsZone extends CommonResource implements DnsZone, HasResource
         item.setId(dnsZone.id());
         item.setName(dnsZone.name());
         item.setResourceGroup(dnsZone.resourceGroupName());
-        item.setRegion(dnsZone.regionName());
+        item.setRegionId(dnsZone.regionName());
         return item;
     }
 
     public List<String> differences(AzureDnsZone current) {
         var differences = new ArrayList<String>();
         different(differences, "Dns Zone", name, "resourceGroup", resourceGroup, current.resourceGroup);
-        different(differences, "Dns Zone", name, "region", region, current.region);
+        different(differences, "Dns Zone", name, "regionId", regionId, current.regionId);
         return differences;
     }
 
@@ -48,12 +48,12 @@ public class AzureDnsZone extends CommonResource implements DnsZone, HasResource
     }
 
     @Override
-    public String getRegion() {
-        return region;
+    public String getRegionId() {
+        return regionId;
     }
 
-    public void setRegion(String region) {
-        this.region = region;
+    public void setRegionId(String regionId) {
+        this.regionId = regionId;
     }
 
     @Override

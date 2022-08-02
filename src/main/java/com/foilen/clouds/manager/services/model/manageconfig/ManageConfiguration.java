@@ -7,7 +7,12 @@
     http://opensource.org/licenses/MIT
 
  */
-package com.foilen.clouds.manager.services.model;
+package com.foilen.clouds.manager.services.model.manageconfig;
+
+import com.foilen.clouds.manager.services.model.AzureApplicationServicePlan;
+import com.foilen.clouds.manager.services.model.AzureKeyVault;
+import com.foilen.clouds.manager.services.model.AzureResourceGroup;
+import com.foilen.clouds.manager.services.model.AzureStorageAccount;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,6 +25,7 @@ public class ManageConfiguration {
     private List<AzureMariadbManageConfiguration> azureMariadbs = new ArrayList<>();
     private List<AzureDnsZoneManageConfiguration> azureDnsZones = new ArrayList<>();
     private List<AzureStorageAccount> azureStorageAccounts = new ArrayList<>();
+    private List<AzureWebAppManageConfiguration> azureWebapps = new ArrayList<>();
 
     public List<AzureResourceGroup> getAzureResourceGroups() {
         return azureResourceGroups;
@@ -67,5 +73,13 @@ public class ManageConfiguration {
 
     public void setAzureStorageAccounts(List<AzureStorageAccount> azureStorageAccounts) {
         this.azureStorageAccounts = azureStorageAccounts;
+    }
+
+    public void setAzureWebapps(List<AzureWebAppManageConfiguration> azureWebapps) {
+        this.azureWebapps = azureWebapps;
+    }
+
+    public List<AzureWebAppManageConfiguration> getAzureWebapps() {
+        return azureWebapps;
     }
 }

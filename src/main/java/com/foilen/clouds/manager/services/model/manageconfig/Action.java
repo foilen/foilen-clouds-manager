@@ -7,11 +7,12 @@
     http://opensource.org/licenses/MIT
 
  */
-package com.foilen.clouds.manager.services.model;
+package com.foilen.clouds.manager.services.model.manageconfig;
 
-public interface HasRegion {
+public enum Action {
 
-    String getRegionId();
+    ADD,
+    UPDATE,
+    REMOVE,
 
-    void setRegionId(String region);
 }

@@ -9,8 +9,10 @@
  */
 package com.foilen.clouds.manager.services;
 
+import com.azure.core.credential.AccessToken;
 import com.azure.core.credential.AzureNamedKeyCredential;
 import com.azure.core.credential.TokenCredential;
+import com.azure.core.credential.TokenRequestContext;
 import com.azure.core.exception.ResourceNotFoundException;
 import com.azure.core.http.policy.HttpLogDetailLevel;
 import com.azure.core.http.rest.PagedIterable;
@@ -19,8 +21,8 @@ import com.azure.core.management.exception.ManagementException;
 import com.azure.core.management.profile.AzureProfile;
 import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.resourcemanager.AzureResourceManager;
-import com.azure.resourcemanager.appservice.models.OperatingSystem;
-import com.azure.resourcemanager.appservice.models.PricingTier;
+import com.azure.resourcemanager.appservice.models.WebApp;
+import com.azure.resourcemanager.appservice.models.*;
 import com.azure.resourcemanager.authorization.models.ActiveDirectoryUser;
 import com.azure.resourcemanager.authorization.models.BuiltInRole;
 import com.azure.resourcemanager.dns.fluent.models.RecordSetInner;
@@ -39,10 +41,12 @@ import com.azure.storage.file.share.models.ShareProtocols;
 import com.azure.storage.file.share.options.ShareCreateOptions;
 import com.foilen.clouds.manager.CliException;
 import com.foilen.clouds.manager.ManageUnrecoverableException;
+import com.foilen.clouds.manager.azureclient.AzureCustomClient;
 import com.foilen.clouds.manager.commands.model.RawDnsEntry;
 import com.foilen.clouds.manager.services.model.*;
 import com.foilen.clouds.manager.services.model.json.AzProfileDetails;
 import com.foilen.clouds.manager.services.model.json.AzSubscription;
+import com.foilen.clouds.manager.services.model.manageconfig.*;
 import com.foilen.databasetools.connection.JdbcUriConfigConnection;
 import com.foilen.databasetools.manage.mariadb.MariadbManageProcess;
 import com.foilen.databasetools.manage.mariadb.MariadbManagerConfig;
@@ -59,6 +63,10 @@ import com.foilen.smalltools.listscomparator.ListsComparator;
 import com.foilen.smalltools.tools.*;
 import com.foilen.smalltools.tuple.Tuple2;
 import com.google.common.base.Strings;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import org.bouncycastle.asn1.DERBMPString;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils;
@@ -72,13 +80,22 @@ import org.bouncycastle.pkcs.bc.BcPKCS12PBEOutputEncryptorBuilder;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS12SafeBagBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.xbill.DNS.ARecord;
+import org.xbill.DNS.Lookup;
+import org.xbill.DNS.TextParseException;
+import org.xbill.DNS.Type;
+import reactor.core.publisher.Mono;
 
 import java.io.File;
 import java.io.IOException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -89,16 +106,36 @@ public class CloudAzureService extends AbstractBasics {
     private static final Logger logger = LoggerFactory.getLogger(CloudAzureService.class);
 
     private static final int ITERATION_COUNT = 2048;
+
+    @Autowired
+    private AzureCustomClient azureCustomClient;
+
+    private final Cache<String, String> storageAccountKeyCache = CacheBuilder.newBuilder().expireAfterWrite(1, TimeUnit.MINUTES).build();
+
+    private static String storageAccountKeyCacheKey(String resourceGroupName, String storageAccountName) {
+        return resourceGroupName + "|" + storageAccountName;
+    }
+
     private AzureProfile profile;
     private TokenCredential tokenCredential;
     private AzureResourceManager azureResourceManager;
     private String userName;
 
+    private LoadingCache<String, String> tokenCache = CacheBuilder.newBuilder().expireAfterWrite(10, TimeUnit.MINUTES).build(new CacheLoader<String, String>() {
+        @Override
+        public String load(String scope) {
+            init();
+            TokenRequestContext request = new TokenRequestContext();
+            request.addScopes(scope);
+            return tokenCredential.getToken(request).block().getToken();
+        }
+    });
+
     protected static AzProfileDetails getAzureProfile(String azureProfileFile) {
         return JsonTools.readFromFile(azureProfileFile, AzProfileDetails.class);
     }
 
-    protected static List<RawDnsEntry> computeDnsEntries(String domainName, List<RawDnsEntry> currentRawDnsEntries, DnsConfig desiredDnsConfig) {
+    protected List<RawDnsEntry> computeDnsEntries(ManageContext context, String domainName, List<RawDnsEntry> currentRawDnsEntries, DnsConfig desiredDnsConfig) {
         // Copy all the current entries if desired
         Map<String, Set<RawDnsEntry>> desiredEntriesByNameType = new HashMap<>();
         if (!desiredDnsConfig.isStartEmpty()) {
@@ -156,6 +193,87 @@ public class CloudAzureService extends AbstractBasics {
 
                     applyRawDnsEntriesOnMap(desiredEntriesByNameType, configEntries.getConflictResolution(), rawDnsEntries);
                 }
+
+            }
+
+            // Azure UID
+            if (configEntries.getAzureUidDnsEntry() != null) {
+
+                List<RawDnsEntry> rawDnsEntries = new ArrayList<>();
+                for (var entry : configEntries.getAzureUidDnsEntry()) {
+                    var webApp = webappFindByName(entry.getWebappResourceGroupName(), entry.getWebappName());
+                    if (webApp.isEmpty()) {
+                        context.needsNextStage(entry.getWebappResourceGroupName(), entry.getWebappName());
+                        continue;
+                    }
+
+                    var azureWebSite = azureCustomClient.website(webApp.get().getId());
+                    if (azureWebSite == null) {
+                        context.needsNextStage(entry.getWebappResourceGroupName(), entry.getWebappName());
+                        continue;
+                    }
+
+                    var value = azureWebSite.getProperties().getCustomDomainVerificationId();
+                    rawDnsEntries.add(new RawDnsEntry()
+                            .setName("asuid." + domainName)
+                            .setType("TXT")
+                            .setDetails(value)
+                            .setTtl(3600)
+                    );
+                }
+
+                applyRawDnsEntriesOnMap(desiredEntriesByNameType, configEntries.getConflictResolution(), rawDnsEntries);
+
+            }
+
+            // Azure Custom Domain
+            if (configEntries.getAzureCustomDomainDnsEntry() != null) {
+
+                List<RawDnsEntry> rawDnsEntries = new ArrayList<>();
+                for (var entry : configEntries.getAzureCustomDomainDnsEntry()) {
+                    var webAppOptional = webappFindByNameRaw(entry.getWebappResourceGroupName(), entry.getWebappName());
+                    if (webAppOptional.isEmpty()) {
+                        context.needsNextStage(entry.getWebappResourceGroupName(), entry.getWebappName());
+                        continue;
+                    }
+
+                    var webApp = webAppOptional.get();
+                    String targetHostname = webApp.defaultHostname();
+
+                    // A or CNAME
+                    if (entry.isUseCname()) {
+                        rawDnsEntries.add(new RawDnsEntry()
+                                .setName(entry.getHostname())
+                                .setType("CNAME")
+                                .setDetails(targetHostname)
+                                .setTtl(300)
+                        );
+                    } else {
+                        try {
+                            var records = new Lookup(targetHostname, Type.A).run();
+                            var record = Arrays.stream(records).findFirst().orElse(null);
+                            if (record == null) {
+                                logger.warn("Could not resolve {}. Marking for retry", targetHostname);
+                                context.needsNextStage(entry.getWebappResourceGroupName(), entry.getWebappName());
+                                continue;
+                            }
+                            var aRecord = (ARecord) record;
+                            rawDnsEntries.add(new RawDnsEntry()
+                                    .setName(entry.getHostname())
+                                    .setType("A")
+                                    .setDetails(aRecord.getAddress().getHostAddress())
+                                    .setTtl(300)
+                            );
+                        } catch (TextParseException e) {
+                            logger.warn("Could not resolve {}. Marking for retry", targetHostname, e);
+                            context.needsNextStage(entry.getWebappResourceGroupName(), entry.getWebappName());
+                        }
+
+                    }
+
+                }
+
+                applyRawDnsEntriesOnMap(desiredEntriesByNameType, configEntries.getConflictResolution(), rawDnsEntries);
 
             }
         }
@@ -223,6 +341,26 @@ public class CloudAzureService extends AbstractBasics {
 
     }
 
+    private Set<String> applicationServiceCertificateHostnamesWithCertificates(WebApp webApp) {
+        return webApp.getHostnameBindings().keySet().stream()
+                .filter(hostname -> !hostname.endsWith(".azurewebsites.net"))
+                .filter(hostname -> {
+                    try {
+                        azureResourceManager.appServiceCertificates().getByResourceGroup(webApp.resourceGroupName(), hostname);
+                        return true;
+                    } catch (ManagementException e) {
+                        if (StringTools.safeEquals(e.getValue().getCode(), AzureConstants.NOT_FOUND)) {
+                            return false;
+                        }
+                        if (StringTools.safeEquals(e.getValue().getCode(), AzureConstants.RESOURCE_NOT_FOUND)) {
+                            return false;
+                        }
+                        throw e;
+                    }
+                })
+                .collect(Collectors.toSet());
+    }
+
     public Optional<AzureApplicationServicePlan> applicationServicePlanFindByName(String resourceGroupName, String applicationServicePlanName) {
 
         init();
@@ -240,19 +378,19 @@ public class CloudAzureService extends AbstractBasics {
 
     }
 
-    public void applicationServicePlanManage(ManageConfiguration config, AzureApplicationServicePlan desired) {
+    public void applicationServicePlanManage(ManageContext context, ManageConfiguration config, AzureApplicationServicePlan desired) {
 
         AssertTools.assertNotNull(desired.getName(), "name must be provided");
 
         if (Strings.isNullOrEmpty(desired.getResourceGroup())) {
             fillResourceGroup(config, desired);
         }
-        if (Strings.isNullOrEmpty(desired.getRegion())) {
+        if (Strings.isNullOrEmpty(desired.getRegionId())) {
             fillRegion(config, desired);
         }
 
         AssertTools.assertNotNull(desired.getResourceGroup(), "resource group must be provided");
-        AssertTools.assertNotNull(desired.getRegion(), "region must be provided");
+        AssertTools.assertNotNull(desired.getRegionId(), "region must be provided");
 
         var pricingTier = PricingTier.getAll().stream()
                 .filter(it -> StringTools.safeEquals(it.toSkuDescription().size(), desired.getPricingTierSize()))
@@ -275,13 +413,14 @@ public class CloudAzureService extends AbstractBasics {
             // create
             logger.info("Create: {}", desired);
             current = AzureApplicationServicePlan.from(azureResourceManager.appServicePlans().define(desired.getName())
-                    .withRegion(desired.getRegion())
+                    .withRegion(desired.getRegionId())
                     .withExistingResourceGroup(desired.getResourceGroup())
                     .withPricingTier(pricingTier)
                     .withOperatingSystem(operatingSystem)
                     .withCapacity(desired.getCapacity())
                     .withPerSiteScaling(desired.getPerSiteScaling())
                     .create());
+            context.addModificationAdd("Azure Application Service Plan", desired.getName());
         } else {
             // Check
             logger.info("Exists: {}", desired);
@@ -324,7 +463,7 @@ public class CloudAzureService extends AbstractBasics {
 
     }
 
-    public void dnsZoneManage(ManageConfiguration config, AzureDnsZoneManageConfiguration desired) {
+    public void dnsZoneManage(ManageContext context, ManageConfiguration config, AzureDnsZoneManageConfiguration desired) {
 
         init();
 
@@ -336,12 +475,12 @@ public class CloudAzureService extends AbstractBasics {
         if (Strings.isNullOrEmpty(desiredResource.getResourceGroup())) {
             fillResourceGroup(config, desiredResource);
         }
-        if (Strings.isNullOrEmpty(desiredResource.getRegion())) {
-            desiredResource.setRegion("global");
+        if (Strings.isNullOrEmpty(desiredResource.getRegionId())) {
+            desiredResource.setRegionId("global");
         }
 
         AssertTools.assertNotNull(desiredResource.getResourceGroup(), "resource.resource group must be provided");
-        AssertTools.assertNotNull(desiredResource.getRegion(), "resource.region must be provided");
+        AssertTools.assertNotNull(desiredResource.getRegionId(), "resource.region must be provided");
 
         logger.info("Check {}", desiredResource);
         var currentResource = dnsZoneFindByName(desiredResource.getResourceGroup(), desiredResource.getName()).orElse(null);
@@ -352,6 +491,7 @@ public class CloudAzureService extends AbstractBasics {
             currentResource = AzureDnsZone.from(azureResourceManager.dnsZones().define(desiredResource.getName())
                     .withExistingResourceGroup(desiredResource.getResourceGroup())
                     .create());
+            context.addModificationAdd("Azure DNS Zone", desiredResource.getName());
         } else {
             // Check
             logger.info("Exists: {}", desiredResource);
@@ -369,7 +509,7 @@ public class CloudAzureService extends AbstractBasics {
         if (desired.getConfig() != null) {
             // Get what is currently present
             var currentEntries = dnsZoneEntryListIgnoreNs(currentResource);
-            var desiredEntries = computeDnsEntries(desiredResource.getName(), currentEntries, desired.getConfig());
+            var desiredEntries = computeDnsEntries(context, desiredResource.getName(), currentEntries, desired.getConfig());
 
             // Apply
             Set<Tuple2<String, String>> nameTypesToUpdate = new HashSet<>();
@@ -386,12 +526,14 @@ public class CloudAzureService extends AbstractBasics {
                         public void leftOnly(RawDnsEntry current) {
                             logger.info("[{}] Remove: {}", desiredResource.getName(), current);
                             nameTypesToUpdate.add(new Tuple2<>(current.getName(), current.getType()));
+                            context.addModificationRemove("Azure DNS Zone", desiredResource.getName(), current.toString());
                         }
 
                         @Override
                         public void rightOnly(RawDnsEntry desired) {
                             logger.info("[{}] Add: {}", desiredResource.getName(), desired);
                             nameTypesToUpdate.add(new Tuple2<>(desired.getName(), desired.getType()));
+                            context.addModificationAdd("Azure DNS Zone", desiredResource.getName(), desired.toString());
 
                         }
                     }
@@ -653,12 +795,14 @@ public class CloudAzureService extends AbstractBasics {
     }
 
     public void storageFileShareCreate(String storageAccountId, AzureStorageFileShare storageFileShare) {
+
         init();
 
         logger.info("Create Storage File Share {} / {}", storageAccountId, storageFileShare);
 
         var storageAccount = azureResourceManager.storageAccounts().getById(storageAccountId);
         var key = storageAccount.getKeys().get(0).value();
+        storageAccountKeyCache.put(storageAccountKeyCacheKey(storageAccount.resourceGroupName(), storageAccount.name()), key);
 
         ShareServiceClient shareServiceClient = new ShareServiceClientBuilder().endpoint(storageAccount.endPoints().primary().file())
                 .credential(new AzureNamedKeyCredential(storageAccount.name(), key))
@@ -735,9 +879,17 @@ public class CloudAzureService extends AbstractBasics {
 
         if (tokenCredential == null) {
             logger.info("Prepare token credential");
-            tokenCredential = new DefaultAzureCredentialBuilder() //
+            var wrappedTokenCredential = new DefaultAzureCredentialBuilder() //
                     .authorityHost(profile.getEnvironment().getActiveDirectoryEndpoint()) //
                     .build();
+
+            tokenCredential = new TokenCredential() {
+                @Override
+                public Mono<AccessToken> getToken(TokenRequestContext request) {
+                    logger.info("Get token for Scopes {}, tenant id {}, claims {}", request.getScopes(), request.getTenantId(), request.getClaims());
+                    return wrappedTokenCredential.getToken(request);
+                }
+            };
         }
 
         if (azureResourceManager == null) {
@@ -891,31 +1043,32 @@ public class CloudAzureService extends AbstractBasics {
         }
     }
 
-    public void keyVaultManage(ManageConfiguration config, AzureKeyVault desired) {
+    public void keyVaultManage(ManageContext context, ManageConfiguration config, AzureKeyVault desiredResource) {
 
-        AssertTools.assertNotNull(desired.getName(), "name must be provided");
+        AssertTools.assertNotNull(desiredResource.getName(), "name must be provided");
 
-        if (Strings.isNullOrEmpty(desired.getResourceGroup())) {
-            fillResourceGroup(config, desired);
+        if (Strings.isNullOrEmpty(desiredResource.getResourceGroup())) {
+            fillResourceGroup(config, desiredResource);
         }
-        if (Strings.isNullOrEmpty(desired.getRegion())) {
-            fillRegion(config, desired);
+        if (Strings.isNullOrEmpty(desiredResource.getRegionId())) {
+            fillRegion(config, desiredResource);
         }
 
-        AssertTools.assertNotNull(desired.getResourceGroup(), "resource group must be provided");
-        AssertTools.assertNotNull(desired.getRegion(), "region must be provided");
+        AssertTools.assertNotNull(desiredResource.getResourceGroup(), "resource group must be provided");
+        AssertTools.assertNotNull(desiredResource.getRegionId(), "region must be provided");
 
-        logger.info("Check {}", desired);
-        var current = keyVaultFindByName(desired.getResourceGroup(), desired.getName()).orElse(null);
-        if (current == null) {
+        logger.info("Check {}", desiredResource);
+        var currentResource = keyVaultFindByName(desiredResource.getResourceGroup(), desiredResource.getName()).orElse(null);
+        if (currentResource == null) {
             // create
-            logger.info("Create: {}", desired);
-            current = keyVaultCreate(desired.getResourceGroup(), Optional.of(desired.getRegion()), desired.getName());
+            logger.info("Create: {}", desiredResource);
+            currentResource = keyVaultCreate(desiredResource.getResourceGroup(), Optional.of(desiredResource.getRegionId()), desiredResource.getName());
+            context.addModificationAdd("Azure Key Vault", desiredResource.getName());
         } else {
             // Check
-            logger.info("Exists: {}", desired);
+            logger.info("Exists: {}", desiredResource);
 
-            var differences = desired.differences(current);
+            var differences = desiredResource.differences(currentResource);
             if (!differences.isEmpty()) {
                 for (String difference : differences) {
                     logger.error(difference);
@@ -973,7 +1126,7 @@ public class CloudAzureService extends AbstractBasics {
         }
     }
 
-    public void mariadbManage(ManageConfiguration config, AzureMariadbManageConfiguration desired) {
+    public void mariadbManage(ManageContext context, ManageConfiguration config, AzureMariadbManageConfiguration desired) {
 
         var desiredResource = desired.getResource();
 
@@ -983,12 +1136,12 @@ public class CloudAzureService extends AbstractBasics {
         if (Strings.isNullOrEmpty(desiredResource.getResourceGroup())) {
             fillResourceGroup(config, desiredResource);
         }
-        if (Strings.isNullOrEmpty(desiredResource.getRegion())) {
+        if (Strings.isNullOrEmpty(desiredResource.getRegionId())) {
             fillRegion(config, desiredResource);
         }
 
         AssertTools.assertNotNull(desiredResource.getResourceGroup(), "resource.resource group must be provided");
-        AssertTools.assertNotNull(desiredResource.getRegion(), "resource.region must be provided");
+        AssertTools.assertNotNull(desiredResource.getRegionId(), "resource.region must be provided");
 
         logger.info("Check {}", desiredResource);
         var currentResource = mariadbFindByName(desiredResource.getResourceGroup(), desiredResource.getName()).orElse(null);
@@ -997,7 +1150,7 @@ public class CloudAzureService extends AbstractBasics {
             logger.info("Create: {}", desiredResource);
             var manager = MariaDBManager.authenticate(tokenCredential, profile);
             currentResource = AzureMariadb.from(manager.servers().define(desiredResource.getName())
-                    .withRegion(desiredResource.getRegion())
+                    .withRegion(desiredResource.getRegionId())
                     .withExistingResourceGroup(desiredResource.getResourceGroup())
                     .withProperties(new ServerPropertiesForDefaultCreate()
                             .withAdministratorLogin(desiredResource.getAdministratorLogin())
@@ -1010,6 +1163,7 @@ public class CloudAzureService extends AbstractBasics {
                     )
                     .withSku(new Sku().withName(desiredResource.getSkuName()))
                     .create());
+            context.addModificationAdd("Azure MariaDB", desiredResource.getName());
         } else {
             // Check
             logger.info("Exists: {}", desiredResource);
@@ -1077,9 +1231,9 @@ public class CloudAzureService extends AbstractBasics {
         }
     }
 
-    public void resourceGroupManage(AzureResourceGroup desired) {
+    public void resourceGroupManage(ManageContext context, AzureResourceGroup desired) {
         AssertTools.assertNotNull(desired.getName(), "name must be provided");
-        AssertTools.assertNotNull(desired.getRegion(), "region must be provided");
+        AssertTools.assertNotNull(desired.getRegionId(), "region must be provided");
 
         logger.info("Check: {}", desired);
         var current = resourceGroupFindByName(desired.getName()).orElse(null);
@@ -1087,8 +1241,9 @@ public class CloudAzureService extends AbstractBasics {
             // create
             logger.info("Create: {}", desired);
             current = AzureResourceGroup.from(azureResourceManager.resourceGroups().define(desired.getName())
-                    .withRegion(desired.getRegion())
+                    .withRegion(desired.getRegionId())
                     .create());
+            context.addModificationAdd("Azure Resource Group", desired.getName());
         } else {
             // Check
             logger.info("Exists: {}", desired);
@@ -1100,6 +1255,21 @@ public class CloudAzureService extends AbstractBasics {
                 }
                 throw new ManageUnrecoverableException();
             }
+        }
+
+    }
+
+    public String storageAccountKey(String resourceGroupName, String storageAccountName) {
+
+        init();
+
+        try {
+            return storageAccountKeyCache.get(storageAccountKeyCacheKey(resourceGroupName, storageAccountName), () -> {
+                var storageAccount = azureResourceManager.storageAccounts().getByResourceGroup(resourceGroupName, storageAccountName);
+                return storageAccount.getKeys().get(0).value();
+            });
+        } catch (ExecutionException e) {
+            throw new ManageUnrecoverableException("Problem getting storage account key", e);
         }
 
     }
@@ -1140,19 +1310,19 @@ public class CloudAzureService extends AbstractBasics {
                 .collect(Collectors.toList());
     }
 
-    public void storageAccountManage(ManageConfiguration config, AzureStorageAccount desiredResource) {
+    public void storageAccountManage(ManageContext context, ManageConfiguration config, AzureStorageAccount desiredResource) {
 
         AssertTools.assertNotNull(desiredResource.getName(), "name must be provided");
 
         if (Strings.isNullOrEmpty(desiredResource.getResourceGroup())) {
             fillResourceGroup(config, desiredResource);
         }
-        if (Strings.isNullOrEmpty(desiredResource.getRegion())) {
+        if (Strings.isNullOrEmpty(desiredResource.getRegionId())) {
             fillRegion(config, desiredResource);
         }
 
         AssertTools.assertNotNull(desiredResource.getResourceGroup(), "resource group must be provided");
-        AssertTools.assertNotNull(desiredResource.getRegion(), "region must be provided");
+        AssertTools.assertNotNull(desiredResource.getRegionId(), "region must be provided");
 
         StorageAccountSkuType sku;
         if (desiredResource.getSkuName() == null) {
@@ -1167,11 +1337,12 @@ public class CloudAzureService extends AbstractBasics {
             // create
             logger.info("Create: {}", desiredResource);
             currentResource = AzureStorageAccount.from(azureResourceManager.storageAccounts().define(desiredResource.getName())
-                    .withRegion(desiredResource.getRegion())
+                    .withRegion(desiredResource.getRegionId())
                     .withExistingResourceGroup(desiredResource.getResourceGroup())
                     .withSku(sku)
                     .withLargeFileShares(desiredResource.getLargeFileShares() == null ? false : desiredResource.getLargeFileShares())
                     .create());
+            context.addModificationAdd("Azure Storage Account", desiredResource.getName());
         } else {
             // Check
             logger.info("Exists: {}", desiredResource);
@@ -1211,28 +1382,327 @@ public class CloudAzureService extends AbstractBasics {
                     public void leftOnly(AzureStorageFileShare currentStorageFileShare) {
                         // Remove
                         storageFileShareDelete(fCurrentResource.getId(), currentStorageFileShare.getName());
+                        context.addModificationRemove("Azure Storage Account", desiredResource.getName() + "/" + currentStorageFileShare.getName());
                     }
 
                     @Override
                     public void rightOnly(AzureStorageFileShare desiredStorageFileShare) {
                         // Create
                         storageFileShareCreate(fCurrentResource.getId(), desiredStorageFileShare);
+                        context.addModificationAdd("Azure Storage Account", desiredResource.getName() + "/" + desiredStorageFileShare.getName());
                     }
                 }
         );
 
+    }
+
+    public List<AzureWebApp> webappList() {
+
+        init();
+
+        return azureResourceManager.webApps().list().stream()
+                .map(it -> {
+                            var webApp = webappFindByIdRaw(it.id()).get();
+                            return AzureWebApp.from(
+                                    webApp,
+                                    azureCustomClient.websiteConfig(it.id()).getSingleValue(),
+                                    applicationServiceCertificateHostnamesWithCertificates(webApp)
+                            );
+                        }
+                )
+                .collect(Collectors.toList());
 
     }
 
-    public Optional<WebApp> webappFindById(String azureWebappId) {
+    public void webappManage(ManageContext context, ManageConfiguration config, AzureWebAppManageConfiguration desired) {
+
+        init();
+
+        var desiredResource = desired.getResource();
+
+        AssertTools.assertNotNull(desiredResource, "resource must be provided");
+        AssertTools.assertNotNull(desiredResource.getName(), "resource.name must be provided");
+        AssertTools.assertNotNull(desiredResource.getAppServicePlanId(), "resource.appServicePlanId must be provided");
+
+        if (Strings.isNullOrEmpty(desiredResource.getResourceGroup())) {
+            fillResourceGroup(config, desiredResource);
+        }
+        if (Strings.isNullOrEmpty(desiredResource.getRegionId())) {
+            fillRegion(config, desiredResource);
+        }
+
+        AssertTools.assertNotNull(desiredResource.getResourceGroup(), "resource.resource group must be provided");
+        AssertTools.assertNotNull(desiredResource.getRegionId(), "resource.region must be provided");
+
+        // Create or get website
+        logger.info("Check {}", desiredResource);
+        var currentResource = webappFindByName(desiredResource.getResourceGroup(), desiredResource.getName()).orElse(null);
+        if (currentResource == null) {
+            // create
+            logger.info("Create: {}", desiredResource);
+            AppServicePlan appServicePlan = azureResourceManager.appServicePlans().getById(desiredResource.getAppServicePlanId());
+            var webapp = azureResourceManager.webApps().define(desiredResource.getName())
+                    .withExistingLinuxPlan(appServicePlan)
+                    .withExistingResourceGroup(desiredResource.getResourceGroup())
+                    .withPublicDockerHubImage(desiredResource.getPublicDockerHubImage())
+                    .withAppSettings(desiredResource.getAppSettings())
+                    .withHttpsOnly(desiredResource.getHttpsOnly())
+                    .withWebAppAlwaysOn(desiredResource.getAlwaysOn())
+                    .withWebSocketsEnabled(desiredResource.getWebSocketsEnabled())
+                    .create();
+            currentResource = AzureWebApp.from(webapp,
+                    azureCustomClient.websiteConfig(webapp.id()).getSingleValue(),
+                    applicationServiceCertificateHostnamesWithCertificates(webapp)
+            );
+            context.addModificationAdd("Azure Web Application", desiredResource.getName());
+        } else {
+            // Check
+            logger.info("Exists: {}", desiredResource);
+
+            var differences = desiredResource.differences(currentResource);
+            if (!differences.isEmpty()) {
+                for (String difference : differences) {
+                    logger.error(difference);
+                }
+                throw new ManageUnrecoverableException();
+            }
+        }
+
+        // Update shares
+        desiredResource.setId(currentResource.getId());
+        var hasChanges = new AtomicBoolean(false);
+        ListsComparator.compareStreams(
+                currentResource.getMountStorages().entrySet().stream().sorted(Comparator.comparing(Map.Entry::getKey)),
+                desiredResource.getMountStorages().entrySet().stream().sorted(Comparator.comparing(Map.Entry::getKey)),
+                (left, right) -> left.getKey().compareTo(right.getKey()),
+                new ListComparatorHandler<>() {
+                    @Override
+                    public void both(Map.Entry<String, AzureWebAppMountStorage> current, Map.Entry<String, AzureWebAppMountStorage> desired) {
+                        // Check if different
+                        if (!current.equals(desired)) {
+                            logger.info("[{}] Update Azure Web Application & Storage: {} -> {}", desiredResource.getName(), current, desired);
+                            hasChanges.set(true);
+                            context.addModificationUpdate("Azure Web Application & Storage", desiredResource.getName() + "/" + current.getKey(), "", current.getValue().toString(), desired.getValue().toString());
+                        }
+                    }
+
+                    @Override
+                    public void leftOnly(Map.Entry<String, AzureWebAppMountStorage> current) {
+                        logger.info("[{}] Remove Azure Web Application & Storage: {}", desiredResource.getName(), current);
+                        hasChanges.set(true);
+                        context.addModificationRemove("Azure Web Application & Storage", desiredResource.getName() + "/" + current.getKey(), current.getValue().toString());
+                    }
+
+                    @Override
+                    public void rightOnly(Map.Entry<String, AzureWebAppMountStorage> desired) {
+                        logger.info("[{}] Add Azure Web Application & Storage: {}", desiredResource.getName(), desired);
+                        hasChanges.set(true);
+                        context.addModificationAdd("Azure Web Application & Storage", desiredResource.getName() + "/" + desired.getKey(), desired.getValue().toString());
+                    }
+                }
+        );
+        if (hasChanges.get()) {
+            logger.info("[{}] Update mounts", desiredResource.getName());
+            azureCustomClient.websiteMountStorageUpdate(desiredResource.getId(), desiredResource.getResourceGroup(), desiredResource.getMountStorages());
+        }
+
+        // Update custom domains
+        hasChanges.set(false);
+        ListsComparator.compareStreams(
+                currentResource.getCustomHostnames().entrySet().stream().sorted(Comparator.comparing(Map.Entry::getKey)),
+                desiredResource.getCustomHostnames().entrySet().stream().sorted(Comparator.comparing(Map.Entry::getKey)),
+                (left, right) -> left.getKey().compareTo(right.getKey()),
+                new ListComparatorHandler<>() {
+                    @Override
+                    public void both(Map.Entry<String, AzureWebAppCustomHostname> current, Map.Entry<String, AzureWebAppCustomHostname> desired) {
+                        // Keep
+                    }
+
+                    @Override
+                    public void leftOnly(Map.Entry<String, AzureWebAppCustomHostname> current) {
+                        logger.info("[{}] Remove Azure Web Application & Custom Domain: {}", desiredResource.getName(), current);
+                        try {
+                            var webApp = azureResourceManager.webApps().getById(desiredResource.getId());
+                            webApp.update().withoutHostnameBinding(current.getKey())
+                                    .apply();
+                            context.addModificationRemove("Azure Web Application & Custom Domain", desiredResource.getName() + "/" + current.getKey());
+                        } catch (Exception e) {
+                            logger.warn("Problem removing the custom domain {}. Error: [{}]. Retry later", current.getKey(), e.getMessage());
+                            context.needsNextStage(desiredResource.getName(), current.getKey());
+                        }
+
+                    }
+
+                    @Override
+                    public void rightOnly(Map.Entry<String, AzureWebAppCustomHostname> desired) {
+                        logger.info("[{}] Add Azure Web Application & Custom Domain: {}", desiredResource.getName(), desired);
+                        String domainName = desired.getValue().getDomainName();
+                        try {
+                            var webApp = azureResourceManager.webApps().getById(desiredResource.getId());
+                            webApp.update().defineHostnameBinding()
+                                    .withThirdPartyDomain(domainName)
+                                    .withSubDomain(desired.getKey())
+                                    .withDnsRecordType(StringTools.safeEquals(domainName, desired.getKey()) ? CustomHostnameDnsRecordType.A : CustomHostnameDnsRecordType.CNAME)
+                                    .attach()
+                                    .apply()
+                            ;
+                            context.addModificationAdd("Azure Web Application & Custom Domain", desiredResource.getName() + "/" + desired.getKey());
+                        } catch (Exception e) {
+                            logger.warn("Problem adding the custom domain {}. Error: [{}]. Retry later", desired.getKey(), e.getMessage());
+                            context.needsNextStage(desiredResource.getName(), desired.getKey());
+                        }
+
+                    }
+                }
+        );
+
+        // Create App Service Managed Certificate
+        var currentCertificates = applicationServiceCertificateHostnamesWithCertificates(azureResourceManager.webApps().getById(desiredResource.getId()));
+        var desiredCustomHostnameCerts = desiredResource.getCustomHostnames().entrySet().stream()
+                .filter(it -> it.getValue().isCreateCertificate())
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
+        ListsComparator.compareStreams(
+                currentCertificates.stream().sorted(),
+                desiredCustomHostnameCerts.stream().sorted(),
+                new ListComparatorHandler<>() {
+                    @Override
+                    public void both(String current, String desired) {
+                        // Keep
+                    }
+
+                    @Override
+                    public void leftOnly(String current) {
+                        logger.info("[{}] Remove Azure Web Application & Certificate: {}", desiredResource.getName(), current);
+                        // TODO + Most likely needs to remove binding first
+                        try {
+                            azureResourceManager.appServiceCertificates().deleteByResourceGroup(desiredResource.getResourceGroup(), current);
+                            context.addModificationRemove("Azure Web Application & Certificate", desiredResource.getName() + "/" + current);
+                        } catch (Exception e) {
+                            logger.warn("Problem removing the certificate for domain {}. Error: [{}]. Retry later", current, e.getMessage(), e);
+                            context.needsNextStage(desiredResource.getName(), current);
+                        }
+                    }
+
+                    @Override
+                    public void rightOnly(String desired) {
+                        logger.info("[{}] Add Azure Web Application & Certificate: {}", desiredResource.getName(), desired);
+                        try {
+                            azureCustomClient.applicationServiceCertificateCreate(desiredResource, desiredResource.getCustomHostnames().get(desired).getDomainName(), desired);
+                            context.addModificationAdd("Azure Web Application & Certificate", desiredResource.getName() + "/" + desired);
+                        } catch (Exception e) {
+                            logger.warn("Problem adding the certificate for domain {}. Error: [{}]. Retry later", desired, e.getMessage(), e);
+                            context.needsNextStage(desiredResource.getName(), desired);
+                        }
+                    }
+                }
+        );
+
+        // Add binding
+        var currentBindedCustomNames = azureResourceManager.webApps().getById(desiredResource.getId()).getHostnameBindings().entrySet().stream()
+                .filter(it -> !it.getKey().endsWith(".azurewebsites.net"))
+                .filter(it -> it.getValue().innerModel().sslState() != null)
+                .filter(it -> it.getValue().innerModel().sslState() != SslState.DISABLED)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
+        ListsComparator.compareStreams(
+                currentBindedCustomNames.stream().sorted(),
+                desiredCustomHostnameCerts.stream().sorted(),
+                new ListComparatorHandler<>() {
+                    @Override
+                    public void both(String current, String desired) {
+                        // Keep
+                    }
+
+                    @Override
+                    public void leftOnly(String current) {
+                        logger.info("[{}] Remove Azure Web Application & Certificate Binding: {}", desiredResource.getName(), current);
+                        try {
+                            var webApp = azureResourceManager.webApps().getById(desiredResource.getId());
+                            webApp.update().withoutSslBinding(current).apply();
+                            context.addModificationRemove("Azure Web Application & Certificate Binding", desiredResource.getName() + "/" + current);
+                        } catch (Exception e) {
+                            logger.warn("Problem removing the certificate binding for domain {}. Error: [{}]. Retry later", current, e.getMessage(), e);
+                            context.needsNextStage(desiredResource.getName(), current);
+                        }
+                    }
+
+                    @Override
+                    public void rightOnly(String desired) {
+                        logger.info("[{}] Add Azure Web Application & Certificate Binding: {}", desiredResource.getName(), desired);
+                        try {
+                            var webApp = azureResourceManager.webApps().getById(desiredResource.getId());
+                            webApp.update().defineSslBinding()
+                                    .forHostname(desired)
+                                    .withExistingCertificate(desired)
+                                    .withSniBasedSsl()
+                                    .attach()
+                                    .apply();
+                            context.addModificationAdd("Azure Web Application & Certificate Binding", desiredResource.getName() + "/" + desired);
+                        } catch (Exception e) {
+                            logger.warn("Problem adding the certificate binding for domain {}. Error: [{}]. Retry later", desired, e.getMessage(), e);
+                            context.needsNextStage(desiredResource.getName(), desired);
+                        }
+                    }
+                }
+        );
+
+    }
+
+    public Optional<AzureWebApp> webappFindById(String azureWebappId) {
+
+        init();
+
+        var resourceOptional = webappFindByIdRaw(azureWebappId);
+        if (resourceOptional.isEmpty()) {
+            return Optional.empty();
+        }
+        var resource = resourceOptional.get();
+        return Optional.of(AzureWebApp.from(
+                resource,
+                azureCustomClient.websiteConfig(azureWebappId).getSingleValue(),
+                applicationServiceCertificateHostnamesWithCertificates(resource)
+        ));
+    }
+
+    public Optional<WebApp> webappFindByIdRaw(String azureWebappId) {
 
         init();
 
         try {
-            var resource = azureResourceManager.webApps().getById(azureWebappId);
-            return Optional.of(AzureWebApp.from(resource));
+            return Optional.of(azureResourceManager.webApps().getById(azureWebappId));
         } catch (ResourceNotFoundException e) {
             return Optional.empty();
+        }
+    }
+
+    public Optional<AzureWebApp> webappFindByName(String resourceGroupName, String name) {
+
+        init();
+
+        var resourceOptional = webappFindByNameRaw(resourceGroupName, name);
+        if (resourceOptional.isEmpty()) {
+            return Optional.empty();
+        }
+        var resource = resourceOptional.get();
+        return Optional.of(AzureWebApp.from(
+                resource,
+                azureCustomClient.websiteConfig(resource.id()).getSingleValue(),
+                applicationServiceCertificateHostnamesWithCertificates(resource)
+        ));
+    }
+
+    public Optional<WebApp> webappFindByNameRaw(String resourceGroupName, String name) {
+
+        init();
+
+        try {
+            return Optional.of(azureResourceManager.webApps().getByResourceGroup(resourceGroupName, name));
+        } catch (ManagementException e) {
+            if (StringTools.safeEquals(e.getValue().getCode(), AzureConstants.RESOURCE_NOT_FOUND)) {
+                return Optional.empty();
+            }
+            throw e;
         }
     }
 
@@ -1307,7 +1777,7 @@ public class CloudAzureService extends AbstractBasics {
 
     private void fillRegion(ManageConfiguration config, HasRegion hasRegion) {
         if (config.getAzureResourceGroups().size() == 1) {
-            hasRegion.setRegion(config.getAzureResourceGroups().get(0).getRegion());
+            hasRegion.setRegionId(config.getAzureResourceGroups().get(0).getRegionId());
         }
     }
 
@@ -1329,6 +1799,16 @@ public class CloudAzureService extends AbstractBasics {
         while (it.hasNext()) {
             var next = it.next();
             action.accept(next);
+        }
+    }
+
+    public String getTokenManagement() {
+        init();
+
+        try {
+            return tokenCache.get("https://management.core.windows.net//.default");
+        } catch (ExecutionException e) {
+            throw new RuntimeException(e);
         }
     }
 
