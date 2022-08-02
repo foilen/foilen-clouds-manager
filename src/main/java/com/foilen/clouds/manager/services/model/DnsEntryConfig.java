@@ -9,6 +9,7 @@
  */
 package com.foilen.clouds.manager.services.model;
 
+import com.foilen.clouds.manager.commands.model.ClearDnsEntry;
 import com.foilen.clouds.manager.commands.model.RawDnsEntry;
 import com.foilen.smalltools.tools.AbstractBasics;
 
@@ -18,6 +19,7 @@ public class DnsEntryConfig extends AbstractBasics {
 
     private ConflictResolution conflictResolution = ConflictResolution.APPEND;
     private List<RawDnsEntry> rawDnsEntries;
+    private List<ClearDnsEntry> clearDnsEntries;
     private List<FoilenCloudDnsEntries> foilenCloudDnsEntries;
 
     private List<AzureUidDnsEntry> azureUidDnsEntry;
@@ -38,6 +40,15 @@ public class DnsEntryConfig extends AbstractBasics {
 
     public DnsEntryConfig setRawDnsEntries(List<RawDnsEntry> rawDnsEntries) {
         this.rawDnsEntries = rawDnsEntries;
+        return this;
+    }
+
+    public List<ClearDnsEntry> getClearDnsEntries() {
+        return clearDnsEntries;
+    }
+
+    public DnsEntryConfig setClearDnsEntries(List<ClearDnsEntry> clearDnsEntries) {
+        this.clearDnsEntries = clearDnsEntries;
         return this;
     }
 

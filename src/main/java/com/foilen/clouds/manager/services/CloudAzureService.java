@@ -155,6 +155,15 @@ public class CloudAzureService extends AbstractBasics {
                 applyRawDnsEntriesOnMap(desiredEntriesByNameType, configEntries.getConflictResolution(), configEntries.getRawDnsEntries());
             }
 
+            // Clear entries
+            if (configEntries.getClearDnsEntries() != null) {
+                configEntries.getClearDnsEntries().forEach(it -> {
+                    logger.info("Clear entries of name {} and type {}", it.getName(), it.getType());
+                    String nameType = it.getName() + "|" + it.getType();
+                    desiredEntriesByNameType.remove(nameType);
+                });
+            }
+
             // Foilen Cloud
             if (configEntries.getFoilenCloudDnsEntries() != null) {
 
