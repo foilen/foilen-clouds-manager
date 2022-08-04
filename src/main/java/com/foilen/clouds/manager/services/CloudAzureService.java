@@ -19,6 +19,7 @@ import com.azure.core.http.rest.PagedIterable;
 import com.azure.core.management.AzureEnvironment;
 import com.azure.core.management.exception.ManagementException;
 import com.azure.core.management.profile.AzureProfile;
+import com.azure.core.util.Context;
 import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.resourcemanager.AzureResourceManager;
 import com.azure.resourcemanager.appservice.models.WebApp;
@@ -34,11 +35,12 @@ import com.azure.resourcemanager.mariadb.MariaDBManager;
 import com.azure.resourcemanager.mariadb.models.*;
 import com.azure.resourcemanager.storage.models.SkuName;
 import com.azure.resourcemanager.storage.models.StorageAccountSkuType;
-import com.azure.storage.file.share.ShareServiceClient;
-import com.azure.storage.file.share.ShareServiceClientBuilder;
+import com.azure.storage.file.share.*;
 import com.azure.storage.file.share.models.ShareAccessTier;
+import com.azure.storage.file.share.models.ShareFileItem;
 import com.azure.storage.file.share.models.ShareProtocols;
 import com.azure.storage.file.share.options.ShareCreateOptions;
+import com.azure.storage.file.share.options.ShareListFilesAndDirectoriesOptions;
 import com.foilen.clouds.manager.CliException;
 import com.foilen.clouds.manager.ManageUnrecoverableException;
 import com.foilen.clouds.manager.azureclient.AzureCustomClient;
@@ -110,7 +112,7 @@ public class CloudAzureService extends AbstractBasics {
     @Autowired
     private AzureCustomClient azureCustomClient;
 
-    private final Cache<String, String> storageAccountKeyCache = CacheBuilder.newBuilder().expireAfterWrite(1, TimeUnit.MINUTES).build();
+    private final Cache<String, String> storageAccountKeyCache = CacheBuilder.newBuilder().expireAfterWrite(1, TimeUnit.HOURS).build();
 
     private static String storageAccountKeyCacheKey(String resourceGroupName, String storageAccountName) {
         return resourceGroupName + "|" + storageAccountName;
@@ -863,6 +865,126 @@ public class CloudAzureService extends AbstractBasics {
 
     }
 
+    public void storageFileShareUpload(String resourceGroupName, String storageAccountName, String shareName, String sourceFolder, String targetFolder) {
+
+        init();
+
+        var client = new ShareFileClientBuilder()
+                .endpoint(String.format("https://%s.file.core.windows.net", storageAccountName))
+                .shareName(shareName)
+                .credential(new AzureNamedKeyCredential(storageAccountName, storageAccountKey(resourceGroupName, storageAccountName)))
+                .resourcePath(targetFolder)
+                .buildDirectoryClient();
+
+        ListsComparator.compareStreams(
+                client.listFilesAndDirectories(new ShareListFilesAndDirectoriesOptions().setIncludeTimestamps(true), null, Context.NONE).stream().sorted(Comparator.comparing(ShareFileItem::getName)),
+                Arrays.stream(new File(sourceFolder).listFiles()).sorted(Comparator.comparing(File::getName)),
+                (a, b) -> a.getName().compareTo(b.getName()),
+                new ListComparatorHandler<>() {
+                    @Override
+                    public void both(ShareFileItem current, File desired) {
+
+                        // Check that it is same type (if not, delete and recreate)
+                        if (current.isDirectory() != desired.isDirectory()) {
+
+                            storageFileShareDeleteFileOrDirectory(resourceGroupName, storageAccountName, shareName, targetFolder, client, current);
+
+                            // Recreate
+                            storageFileShareCreateFileOrDirectory(resourceGroupName, storageAccountName, shareName, targetFolder, client, desired);
+
+                        } else {
+
+                            // Same type
+                            if (current.isDirectory()) {
+                                // Walk it
+                                var subSourceFolder = desired.getAbsolutePath();
+                                var subTargetFolder = targetFolder.isEmpty() ? current.getName() : targetFolder + "/" + current.getName();
+                                storageFileShareUpload(resourceGroupName, storageAccountName, shareName, subSourceFolder, subTargetFolder);
+                            } else {
+                                // Update the file if size or modification date are not the same
+                                long currentLastModificationSeconds = current.getProperties().getLastModified().toEpochSecond();
+                                long desiredLastModificationSeconds = desired.lastModified() / 1000;
+                                if (currentLastModificationSeconds < desiredLastModificationSeconds) {
+                                    logger.info("Upload file in {}/{} because the last modification date is locally more recent", targetFolder, desired.getName());
+                                    client.createFile(desired.getName(), desired.length())
+                                            .uploadFromFile(desired.getAbsolutePath());
+                                }
+                                if (current.getFileSize() != desired.length()) {
+                                    logger.info("Upload file in {}/{} because the size are different", targetFolder, desired.getName());
+                                    client.createFile(desired.getName(), desired.length())
+                                            .uploadFromFile(desired.getAbsolutePath());
+                                }
+                            }
+
+
+                        }
+
+                    }
+
+                    @Override
+                    public void leftOnly(ShareFileItem current) {
+                        // Delete file or delete folder recursively
+                        storageFileShareDeleteFileOrDirectory(resourceGroupName, storageAccountName, shareName, targetFolder, client, current);
+                    }
+
+                    @Override
+                    public void rightOnly(File desired) {
+                        //  Upload file or create directory and walk it
+                        storageFileShareCreateFileOrDirectory(resourceGroupName, storageAccountName, shareName, targetFolder, client, desired);
+                    }
+                }
+        );
+
+    }
+
+    private void storageFileShareCreateFileOrDirectory(String resourceGroupName, String storageAccountName, String shareName, String targetFolder, ShareDirectoryClient client, File fileOrFolderToCreate) {
+        if (fileOrFolderToCreate.isDirectory()) {
+            logger.info("Create folder {}/{}", targetFolder, fileOrFolderToCreate.getName());
+            client.createSubdirectory(fileOrFolderToCreate.getName());
+            var subSourceFolder = fileOrFolderToCreate.getAbsolutePath();
+            var subTargetFolder = targetFolder.isEmpty() ? fileOrFolderToCreate.getName() : targetFolder + "/" + fileOrFolderToCreate.getName();
+            storageFileShareUpload(resourceGroupName, storageAccountName, shareName, subSourceFolder, subTargetFolder);
+        } else {
+            logger.info("Upload file in {}/{}", targetFolder, fileOrFolderToCreate.getName());
+            client.createFile(fileOrFolderToCreate.getName(), fileOrFolderToCreate.length())
+                    .uploadFromFile(fileOrFolderToCreate.getAbsolutePath());
+        }
+    }
+
+    private void storageFileShareDeleteFileOrDirectory(String resourceGroupName, String storageAccountName, String shareName, String targetFolder, ShareDirectoryClient client, ShareFileItem toDelete) {
+        if (toDelete.isDirectory()) {
+
+            var subTargetFolder = targetFolder.isEmpty() ? toDelete.getName() : targetFolder + "/" + toDelete.getName();
+            storageFileShareDeleteAllInFolder(resourceGroupName, storageAccountName, shareName, subTargetFolder);
+            logger.info("Delete folder {}", subTargetFolder);
+            client.deleteSubdirectory(toDelete.getName());
+
+        } else {
+
+            logger.info("Delete file {}/{}", targetFolder, toDelete.getName());
+            client.deleteFile(toDelete.getName());
+
+        }
+    }
+
+    public void storageFileShareDeleteAllInFolder(String resourceGroupName, String storageAccountName, String shareName, String folderToDelete) {
+
+        init();
+
+        var client = new ShareFileClientBuilder()
+                .endpoint(String.format("https://%s.file.core.windows.net", storageAccountName))
+                .shareName(shareName)
+                .credential(new AzureNamedKeyCredential(storageAccountName, storageAccountKey(resourceGroupName, storageAccountName)))
+                .resourcePath(folderToDelete)
+                .buildDirectoryClient();
+
+        logger.info("Delete all in folder {}", folderToDelete);
+        client.listFilesAndDirectories().forEach(shareFileItem -> {
+            storageFileShareDeleteFileOrDirectory(resourceGroupName, storageAccountName, shareName, folderToDelete, client, shareFileItem);
+        });
+
+    }
+
     private void init() {
 
         if (profile == null) {
@@ -1583,7 +1705,6 @@ public class CloudAzureService extends AbstractBasics {
                     @Override
                     public void leftOnly(String current) {
                         logger.info("[{}] Remove Azure Web Application & Certificate: {}", desiredResource.getName(), current);
-                        // TODO + Most likely needs to remove binding first
                         try {
                             azureResourceManager.appServiceCertificates().deleteByResourceGroup(desiredResource.getResourceGroup(), current);
                             context.addModificationRemove("Azure Web Application & Certificate", desiredResource.getName() + "/" + current);

@@ -106,6 +106,23 @@ public class AzureCommands {
 
     }
 
+    @ShellMethod("Sync local folder to target")
+    public void azureStorageSyncTo(
+            @ShellOption String resourceGroupName,
+            @ShellOption String storageAccountName,
+            @ShellOption String shareName,
+            @ShellOption String sourceFolder,
+            @ShellOption(defaultValue = "") String targetFolder
+    ) {
+
+        try {
+            cloudAzureService.storageFileShareUpload(resourceGroupName, storageAccountName, shareName, sourceFolder, targetFolder);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+    }
+
     private AzureKeyVault findKeyVaultByNameOrFail(String resourceGroupName, String keyVaultName) {
         Optional<AzureKeyVault> azureKeyVault = cloudAzureService.keyVaultFindByName(resourceGroupName, keyVaultName);
 
