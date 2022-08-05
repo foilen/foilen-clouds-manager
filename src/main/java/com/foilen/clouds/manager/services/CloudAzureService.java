@@ -35,7 +35,10 @@ import com.azure.resourcemanager.mariadb.MariaDBManager;
 import com.azure.resourcemanager.mariadb.models.*;
 import com.azure.resourcemanager.storage.models.SkuName;
 import com.azure.resourcemanager.storage.models.StorageAccountSkuType;
-import com.azure.storage.file.share.*;
+import com.azure.storage.file.share.ShareDirectoryClient;
+import com.azure.storage.file.share.ShareFileClientBuilder;
+import com.azure.storage.file.share.ShareServiceClient;
+import com.azure.storage.file.share.ShareServiceClientBuilder;
 import com.azure.storage.file.share.models.ShareAccessTier;
 import com.azure.storage.file.share.models.ShareFileItem;
 import com.azure.storage.file.share.models.ShareProtocols;
@@ -100,6 +103,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Component
@@ -1590,12 +1594,20 @@ public class CloudAzureService extends AbstractBasics {
             // Check
             logger.info("Exists: {}", desiredResource);
 
-            var differences = desiredResource.differences(currentResource);
+            List<Function<WebApp, List<Modification>>> updateActions = new ArrayList<>();
+            var differences = desiredResource.differences(currentResource, updateActions);
             if (!differences.isEmpty()) {
                 for (String difference : differences) {
                     logger.error(difference);
                 }
                 throw new ManageUnrecoverableException();
+            }
+
+            // Update what can be updated
+            if (!updateActions.isEmpty()) {
+                logger.info("Azure Web Application - Update some properties of {}", desiredResource.getName());
+                var resourceId = currentResource.getId();
+                updateActions.forEach(it -> it.apply(azureResourceManager.webApps().getById(resourceId)).forEach(context::addModification));
             }
         }
 

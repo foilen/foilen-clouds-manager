@@ -10,11 +10,16 @@
 package com.foilen.clouds.manager.services.model;
 
 import com.azure.resourcemanager.appservice.fluent.models.SiteConfigInner;
-import com.azure.resourcemanager.appservice.fluent.models.SiteInner;
 import com.azure.resourcemanager.appservice.models.AppSetting;
 import com.foilen.clouds.manager.azureclient.model.AzureWebSiteConfig;
+import com.foilen.clouds.manager.services.model.manageconfig.Action;
+import com.foilen.clouds.manager.services.model.manageconfig.Modification;
+import com.foilen.smalltools.listscomparator.ListComparatorHandler;
+import com.foilen.smalltools.listscomparator.ListsComparator;
+import com.foilen.smalltools.tools.StringTools;
 
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class AzureWebApp extends CommonResource implements WebApp, HasResourceGroup {
@@ -46,18 +51,15 @@ public class AzureWebApp extends CommonResource implements WebApp, HasResourceGr
         item.httpsOnly = webApp.httpsOnly();
         item.appServicePlanId = webApp.appServicePlanId();
         item.webSocketsEnabled = webApp.webSocketsEnabled();
-        SiteInner innerModel = webApp.innerModel();
+        var innerModel = webApp.innerModel();
         item.appSettings = webApp.getAppSettings().values().stream().collect(Collectors.toMap(AppSetting::key, AppSetting::value));
         if (innerModel != null) {
             SiteConfigInner siteConfig = innerModel.siteConfig();
             if (siteConfig != null) {
                 item.alwaysOn = siteConfig.alwaysOn();
-                String[] linuxFxVersion = siteConfig.linuxFxVersion().split("\\|");
-                if (linuxFxVersion.length == 2) {
-                    item.publicDockerHubImage = linuxFxVersion[1];
-                }
             }
         }
+        item.publicDockerHubImage = getPublicDockerHubImage(webApp);
 
         webSiteConfig.getProperties().getAzureStorageAccounts().forEach((mountName, mountValue) -> item.mountStorages.put(mountName, new AzureWebAppMountStorage()
                 .setMountPath(mountValue.getMountPath())
@@ -76,17 +78,89 @@ public class AzureWebApp extends CommonResource implements WebApp, HasResourceGr
         return item;
     }
 
+    private static String getPublicDockerHubImage(com.azure.resourcemanager.appservice.models.WebApp webApp) {
+        var innerModel = webApp.innerModel();
+        if (innerModel != null) {
+            SiteConfigInner siteConfig = innerModel.siteConfig();
+            if (siteConfig != null) {
+                String[] linuxFxVersion = siteConfig.linuxFxVersion().split("\\|");
+                if (linuxFxVersion.length == 2) {
+                    return linuxFxVersion[1];
+                }
+            }
+        }
+        return null;
+    }
+
     public List<String> differences(AzureWebApp current) {
+        return differences(current, null);
+    }
+
+    public List<String> differences(AzureWebApp current, List<Function<com.azure.resourcemanager.appservice.models.WebApp, List<Modification>>> updateActions) {
         var differences = new ArrayList<String>();
         different(differences, "Web App", name, "resourceGroup", resourceGroup, current.resourceGroup);
         different(differences, "Web App", name, "regionId", regionId, current.regionId);
         different(differences, "Web App", name, "name", name, current.name);
         different(differences, "Web App", name, "appServicePlanId", appServicePlanId, current.appServicePlanId);
-        different(differences, "Web App", name, "publicDockerHubImage", publicDockerHubImage, current.publicDockerHubImage);
+        different(differences, "Web App", name, "publicDockerHubImage", publicDockerHubImage, current.publicDockerHubImage, () -> {
+            updateActions.add(webApp -> {
+                var currentValue = getPublicDockerHubImage(webApp);
+                if (StringTools.safeEquals(currentValue, publicDockerHubImage)) {
+                    return Collections.emptyList();
+                }
+
+                webApp.update()
+                        .withPublicDockerHubImage(publicDockerHubImage)
+                        .apply();
+                return Arrays.asList(new Modification().setResourceType("Web App").setResourceName(name).setAction(Action.UPDATE).setDetails("publicDockerHubImage").setFromValue(currentValue).setToValue(publicDockerHubImage));
+            });
+        });
         different(differences, "Web App", name, "alwaysOn", alwaysOn, current.alwaysOn);
         different(differences, "Web App", name, "httpsOnly", httpsOnly, current.httpsOnly);
         different(differences, "Web App", name, "webSocketsEnabled", webSocketsEnabled, current.webSocketsEnabled);
-        different(differences, "Web App", name, "appSettings", appSettings, current.appSettings);
+        different(differences, "Web App", name, "appSettings", appSettings, current.appSettings, () -> {
+            updateActions.add(webApp -> {
+                var currentAppSettings = webApp.getAppSettings().values().stream().collect(Collectors.toMap(AppSetting::key, AppSetting::value));
+                if (currentAppSettings.equals(appSettings)) {
+                    return Collections.emptyList();
+                }
+
+                var update = webApp.update();
+
+                List<Modification> modifications = new ArrayList<>();
+
+                ListsComparator.compareStreams(
+                        currentAppSettings.entrySet().stream().sorted(Map.Entry.comparingByKey()),
+                        appSettings.entrySet().stream().sorted(Map.Entry.comparingByKey()),
+                        (a, b) -> a.getKey().compareTo(b.getKey()),
+                        new ListComparatorHandler<>() {
+                            @Override
+                            public void both(Map.Entry<String, String> current, Map.Entry<String, String> desired) {
+                                if (!StringTools.safeEquals(current.getValue(), desired.getValue())) {
+                                    update.withAppSetting(desired.getKey(), desired.getValue());
+                                    modifications.add(new Modification().setResourceType("Web App").setResourceName(name).setAction(Action.UPDATE).setDetails("appSettings|" + current.getKey()).setFromValue(current.getValue()).setToValue(desired.getValue()));
+                                }
+                            }
+
+                            @Override
+                            public void leftOnly(Map.Entry<String, String> current) {
+                                update.withoutAppSetting(current.getKey());
+                                modifications.add(new Modification().setResourceType("Web App").setResourceName(name).setAction(Action.REMOVE).setDetails("appSettings|" + current.getKey() + " => " + current.getValue()));
+                            }
+
+                            @Override
+                            public void rightOnly(Map.Entry<String, String> desired) {
+                                update.withAppSetting(desired.getKey(), desired.getValue());
+                                modifications.add(new Modification().setResourceType("Web App").setResourceName(name).setAction(Action.ADD).setDetails("appSettings|" + desired.getKey() + " => " + desired.getValue()));
+                            }
+                        }
+                );
+
+                update.apply();
+
+                return modifications;
+            });
+        });
         return differences;
     }
 

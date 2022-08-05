@@ -13,6 +13,7 @@ import com.foilen.smalltools.tools.AbstractBasics;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 public abstract class CommonResource extends AbstractBasics implements HasCloudProvider {
 
@@ -38,8 +39,16 @@ public abstract class CommonResource extends AbstractBasics implements HasCloudP
     }
 
     protected void different(List<String> differences, String type, String name, String field, Object desired, Object current) {
+        different(differences, type, name, field, desired, current, null);
+    }
+
+    protected void different(List<String> differences, String type, String name, String field, Object desired, Object current, Runnable updateRunnable) {
         if (!Objects.equals(desired, current)) {
-            differences.add(type + " " + name + " has different " + field + ". Desired " + desired + " ; Current " + current);
+            if (updateRunnable == null) {
+                differences.add(type + " " + name + " has different " + field + ". Desired " + desired + " ; Current " + current);
+            } else {
+                updateRunnable.run();
+            }
         }
     }
 

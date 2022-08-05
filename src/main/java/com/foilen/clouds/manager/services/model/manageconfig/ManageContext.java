@@ -21,6 +21,20 @@ public class ManageContext {
 
     private String needsNextStageHash = "";
 
+    public void addModification(Modification modification) {
+        switch (modification.getAction()) {
+            case ADD:
+                addModificationAdd(modification.getResourceType(), modification.getResourceName(), modification.getDetails());
+                break;
+            case UPDATE:
+                addModificationUpdate(modification.getResourceType(), modification.getResourceName(), modification.getDetails(), modification.getFromValue(), modification.getToValue());
+                break;
+            case REMOVE:
+                addModificationRemove(modification.getResourceType(), modification.getResourceName(), modification.getDetails());
+                break;
+        }
+    }
+
     private void addModification(String resourceType, String resourceName, Action action, String details) {
         modifications.add(resourceType + " (" + resourceName + ") " + action + " " + details);
     }

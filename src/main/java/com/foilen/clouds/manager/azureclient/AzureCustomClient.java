@@ -50,7 +50,6 @@ public class AzureCustomClient extends AbstractBasics {
                 .setProperties(new AzureApplicationServiceCertificateRequestProperties()
                         .setCanonicalName(hostname)
                         .setServerFarmId(azureWebApp.getAppServicePlanId())
-                        //.setDomainValidationMethod(StringTools.safeEquals(domainName, hostname) ? CustomHostnameDnsRecordType.A.name() : CustomHostnameDnsRecordType.CNAME.name()) // TODO ++++ good?
                 );
 
         var idDetails = AzureUtils.getAzIdDetails(azureWebApp.getId());
