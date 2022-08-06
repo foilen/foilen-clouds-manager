@@ -20,6 +20,7 @@ import com.azure.core.management.AzureEnvironment;
 import com.azure.core.management.exception.ManagementException;
 import com.azure.core.management.profile.AzureProfile;
 import com.azure.core.util.Context;
+import com.azure.identity.AzureCliCredentialBuilder;
 import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.resourcemanager.AzureResourceManager;
 import com.azure.resourcemanager.appservice.models.WebApp;
@@ -1014,9 +1015,16 @@ public class CloudAzureService extends AbstractBasics {
 
         if (tokenCredential == null) {
             logger.info("Prepare token credential");
-            var wrappedTokenCredential = new DefaultAzureCredentialBuilder() //
-                    .authorityHost(profile.getEnvironment().getActiveDirectoryEndpoint()) //
-                    .build();
+            var forceAzCliAuth = SystemTools.getPropertyOrEnvironment("FORCE_AZ_CLI_AUTH", "false").toLowerCase().equals("true");
+            TokenCredential wrappedTokenCredential;
+            if (forceAzCliAuth) {
+                wrappedTokenCredential = new AzureCliCredentialBuilder()
+                        .build();
+            } else {
+                wrappedTokenCredential = new DefaultAzureCredentialBuilder() //
+                        .authorityHost(profile.getEnvironment().getActiveDirectoryEndpoint()) //
+                        .build();
+            }
 
             tokenCredential = new TokenCredential() {
                 @Override

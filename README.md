@@ -10,6 +10,7 @@ A CLI to help managing the infrastructure.
 
 # Local testing
 
+In interactive mode:
 ```
 ./create-local-release.sh
 
@@ -19,11 +20,26 @@ docker run -ti \
   --workdir $(pwd) \
   --user $(id -u) \
   --env HOME=$HOME \
-  foilen-clouds-manager:master-SNAPSHOT
+  foilen-clouds-manager:main-SNAPSHOT
 ```
 
-# Start it
+With command:
+```
+./create-local-release.sh
 
+docker run -ti \
+  --rm \
+  --volume /home:/home \
+  --workdir $(pwd) \
+  --user $(id -u) \
+  --env HOME=$HOME \
+  foilen-clouds-manager:main-SNAPSHOT dns-query \
+    --hostname foilen.com
+```
+
+# Start it with Docker
+
+In interactive mode:
 ```
 docker run -ti \
   --rm \
@@ -32,4 +48,28 @@ docker run -ti \
   --user $(id -u) \
   --env HOME=$HOME \
   foilen/foilen-clouds-manager
+```
+
+With command:
+```
+docker run -ti \
+  --rm \
+  --volume /home:/home \
+  --workdir $(pwd) \
+  --user $(id -u) \
+  --env HOME=$HOME \
+  foilen/foilen-clouds-manager dns-query \
+    --hostname foilen.com
+```
+
+If you want to ensure it will use the credential you got with `az login`, you can force its usage:
+```
+docker run -ti \
+  --rm \
+  --volume /home:/home \
+  --workdir $(pwd) \
+  --user $(id -u) \
+  --env HOME=$HOME \
+  --env FORCE_AZ_CLI_AUTH=true \
+  foilen/foilen-clouds-manager azure-dns-zone-list
 ```
