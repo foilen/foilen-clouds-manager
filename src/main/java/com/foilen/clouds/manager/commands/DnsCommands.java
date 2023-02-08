@@ -105,11 +105,11 @@ public class DnsCommands extends AbstractBasics {
                     }
 
                     // Get the records
-                    Record[] records = lookup.run();
+                    var records = lookup.run();
                     if (records == null) {
                         continue;
                     }
-                    for (Record record : records) {
+                    for (var record : records) {
 
                         String typeName = typeById.get(record.getType());
                         RawDnsEntry dnsEntry = new RawDnsEntry() //
