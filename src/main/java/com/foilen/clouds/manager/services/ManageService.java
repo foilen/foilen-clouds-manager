@@ -107,7 +107,10 @@ public class ManageService extends AbstractBasics {
 
         logger.info("Getting mariadbs");
         config.setAzureMariadbs(cloudAzureService.mariadbList().stream()
-                .map(it -> new AzureMariadbManageConfiguration().setResource(it))
+                .map(it -> new AzureMariadbManageConfiguration()
+                        .setResource(it)
+                        // TODO MariaDB - Export Config
+                )
                 .collect(Collectors.toList())
         );
 
