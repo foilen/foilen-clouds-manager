@@ -56,11 +56,6 @@ import com.foilen.clouds.manager.services.model.manageconfig.*;
 import com.foilen.databasetools.connection.JdbcUriConfigConnection;
 import com.foilen.databasetools.manage.mariadb.MariadbManageProcess;
 import com.foilen.databasetools.manage.mariadb.MariadbManagerConfig;
-import com.foilen.infra.api.request.RequestResourceSearch;
-import com.foilen.infra.api.response.ResponseResourceBuckets;
-import com.foilen.infra.api.service.InfraApiService;
-import com.foilen.infra.api.service.InfraApiServiceImpl;
-import com.foilen.infra.resource.dns.DnsEntry;
 import com.foilen.smalltools.JavaEnvironmentValues;
 import com.foilen.smalltools.crypt.bouncycastle.cert.RSACertificate;
 import com.foilen.smalltools.crypt.bouncycastle.cert.RSATools;
@@ -169,47 +164,6 @@ public class CloudAzureService extends AbstractBasics {
                     String nameType = it.getName() + "|" + it.getType();
                     desiredEntriesByNameType.remove(nameType);
                 });
-            }
-
-            // Foilen Cloud
-            if (configEntries.getFoilenCloudDnsEntries() != null) {
-
-                for (var it : configEntries.getFoilenCloudDnsEntries()) {
-                    // Get all entries from Foilen Cloud
-                    logger.info("Get Foilen Cloud DNS entries for domain {}", it.getDomainName());
-                    InfraApiService infraApiService = new InfraApiServiceImpl(it.getInfraBaseUrl(), it.getApiUser(), it.getApiKey());
-                    ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAllWithDetails(new RequestResourceSearch().setResourceType(DnsEntry.RESOURCE_TYPE));
-                    AssertTools.assertNotNull(resourceBuckets, "Problem getting the DNS entries - No response");
-                    AssertTools.assertTrue(resourceBuckets.isSuccess(), "Problem getting the DNS entries - Got an error");
-
-                    var rawDnsEntries = resourceBuckets.getItems().stream() //
-                            .map(resourceBucket -> JsonTools.clone(resourceBucket.getResourceDetails().getResource(), DnsEntry.class)) //
-                            .filter(dnsEntry -> dnsEntry.getName().endsWith(it.getDomainName())) //
-                            .map(dnsEntry -> {
-                                RawDnsEntry rawDnsEntry = new RawDnsEntry()
-                                        .setName(dnsEntry.getName())
-                                        .setType(dnsEntry.getType().name())
-                                        .setDetails(dnsEntry.getDetails())
-                                        .setTtl(300);
-                                switch (dnsEntry.getType()) {
-                                    case MX:
-                                        rawDnsEntry.setPriority(dnsEntry.getPriority());
-                                        break;
-                                    case SRV:
-                                        rawDnsEntry.setPriority(dnsEntry.getPriority());
-                                        rawDnsEntry.setWeight(dnsEntry.getWeight());
-                                        rawDnsEntry.setPort(dnsEntry.getPort());
-                                        break;
-                                    default:
-                                }
-                                return rawDnsEntry;
-                            }) //
-                            .sorted().distinct() //
-                            .collect(Collectors.toList());
-
-                    applyRawDnsEntriesOnMap(desiredEntriesByNameType, configEntries.getConflictResolution(), rawDnsEntries);
-                }
-
             }
 
             // Azure UID

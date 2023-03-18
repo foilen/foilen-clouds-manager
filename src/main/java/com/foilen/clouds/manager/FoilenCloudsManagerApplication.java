@@ -10,6 +10,7 @@
 package com.foilen.clouds.manager;
 
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration;
 
@@ -18,7 +19,10 @@ public class FoilenCloudsManagerApplication {
 
     public static void main(String[] args) {
         System.setProperty("spring.xml.ignore", "true");
-        SpringApplication.run(FoilenCloudsManagerApplication.class, args);
+
+        var app = new SpringApplication(FoilenCloudsManagerApplication.class);
+        app.setWebApplicationType(WebApplicationType.NONE);
+        app.run(args);
     }
 
 }

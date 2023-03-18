@@ -20,7 +20,6 @@ public class DnsEntryConfig extends AbstractBasics {
     private ConflictResolution conflictResolution = ConflictResolution.APPEND;
     private List<RawDnsEntry> rawDnsEntries;
     private List<ClearDnsEntry> clearDnsEntries;
-    private List<FoilenCloudDnsEntries> foilenCloudDnsEntries;
 
     private List<AzureUidDnsEntry> azureUidDnsEntry;
     private List<AzureCustomDomainDnsEntry> azureCustomDomainDnsEntry;
@@ -49,15 +48,6 @@ public class DnsEntryConfig extends AbstractBasics {
 
     public DnsEntryConfig setClearDnsEntries(List<ClearDnsEntry> clearDnsEntries) {
         this.clearDnsEntries = clearDnsEntries;
-        return this;
-    }
-
-    public List<FoilenCloudDnsEntries> getFoilenCloudDnsEntries() {
-        return foilenCloudDnsEntries;
-    }
-
-    public DnsEntryConfig setFoilenCloudDnsEntries(List<FoilenCloudDnsEntries> foilenCloudDnsEntries) {
-        this.foilenCloudDnsEntries = foilenCloudDnsEntries;
         return this;
     }
 

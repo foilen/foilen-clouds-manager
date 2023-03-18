@@ -85,7 +85,7 @@ public class ManageService extends AbstractBasics {
 
         // Show summary of modifications
         System.out.println("---[ Summary of modifications ]---");
-        globalContext.getModifications().forEach(it -> System.out.println(it));
+        globalContext.getModifications().forEach(System.out::println);
 
         if (!globalContext.getNeedsNextStageHash().isEmpty()) {
             System.out.println("\nISSUE: Could not complete due to missing dependency");
@@ -108,7 +108,7 @@ public class ManageService extends AbstractBasics {
         logger.info("Getting mariadbs");
         config.setAzureMariadbs(cloudAzureService.mariadbList().stream()
                 .map(it -> new AzureMariadbManageConfiguration()
-                        .setResource(it)
+                                .setResource(it)
                         // TODO MariaDB - Export Config
                 )
                 .collect(Collectors.toList())

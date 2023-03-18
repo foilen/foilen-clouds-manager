@@ -1,7 +1,7 @@
 plugins {
-    id "com.github.ben-manes.versions" version "0.45.0"
+    id "com.github.ben-manes.versions" version "0.46.0"
     id 'io.spring.dependency-management' version "1.1.0"
-    id 'org.springframework.boot' version "2.7.8"
+    id 'org.springframework.boot' version "2.7.9"
 }
 
 apply plugin: 'java'
@@ -20,9 +20,8 @@ sourceCompatibility = 11
 dependencies {
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation "com.foilen:database-tools:1.1.0"
-    implementation "com.foilen:foilen-infra-api:0.16.0"
-    implementation "com.foilen:foilen-infra-plugin-core:0.14.0"
-    implementation "com.foilen:foilen-infra-plugins-core:0.22.0"
+    implementation "com.foilen:jl-smalltools-bouncycastle:2.4.0"
+    implementation "com.foilen:jl-smalltools-spring:2.4.0"
     implementation "com.google.guava:guava:31.1-jre"
     implementation "dnsjava:dnsjava:3.5.2"
     implementation "javax.xml.bind:jaxb-api"
