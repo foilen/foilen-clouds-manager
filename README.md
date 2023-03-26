@@ -73,3 +73,20 @@ docker run -ti \
   --env FORCE_AZ_CLI_AUTH=true \
   foilen/foilen-clouds-manager azure-dns-zone-list
 ```
+
+# To update the IP address of a DNS entry based on the current IP
+
+```
+docker run -d --restart always  \
+  --rm \
+  --volume /home:/home \
+  --workdir $(pwd) \
+  --user $(id -u) \
+  --env HOME=$HOME \
+  --env FORCE_AZ_CLI_AUTH=true \
+  foilen/foilen-clouds-manager azure-dns-zone-entry-update \
+    --resource-group-name my_rg \
+    --dns-zone-name foilen.com \
+    --hostname server.foilen.com \
+    --keep-alive
+```

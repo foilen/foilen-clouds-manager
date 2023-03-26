@@ -10,14 +10,19 @@
 package com.foilen.clouds.manager.commands;
 
 import com.foilen.clouds.manager.CliException;
+import com.foilen.clouds.manager.commands.model.RawDnsEntry;
 import com.foilen.clouds.manager.services.CloudAzureService;
 import com.foilen.clouds.manager.services.model.AzureDnsZone;
 import com.foilen.clouds.manager.services.model.AzureKeyVault;
+import com.foilen.smalltools.tools.InternetTools;
+import com.foilen.smalltools.tools.StringTools;
+import com.foilen.smalltools.tools.ThreadTools;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.shell.standard.ShellComponent;
 import org.springframework.shell.standard.ShellMethod;
 import org.springframework.shell.standard.ShellOption;
 
+import java.util.List;
 import java.util.Optional;
 
 @ShellComponent
@@ -25,6 +30,62 @@ public class AzureCommands {
 
     @Autowired
     private CloudAzureService cloudAzureService;
+
+    @ShellMethod("Set the IP of a DNS Zone entry")
+    public void azureDnsZoneEntryUpdate(
+            @ShellOption String resourceGroupName,
+            @ShellOption String dnsZoneName,
+            @ShellOption String hostname,
+            @ShellOption(defaultValue = ShellOption.NULL, help = "The IP to set or it will get the public IP of the current machine") String ip,
+            @ShellOption(defaultValue = "false") boolean keepAlive
+    ) {
+
+        if (keepAlive && ip != null) {
+            throw new CliException("Cannot set an IP and keep alive at the same time");
+        }
+
+        System.out.println("Resource Group Name: " + resourceGroupName);
+        System.out.println("DNS Zone Name: " + dnsZoneName);
+        System.out.println("Hostname: " + hostname);
+
+        var dnsZone = cloudAzureService.dnsZoneFindByName(resourceGroupName, dnsZoneName).orElse(null);
+        if (dnsZone == null) {
+            System.out.println("Unknown DNS Zone");
+            throw new CliException("Unknown DNS Zone");
+        }
+
+        String ipInAzure = cloudAzureService.dnsZoneEntryList(dnsZone).stream() //
+                .filter(it -> it.getName().equals(hostname)) //
+                .map(RawDnsEntry::getDetails) //
+                .findFirst() //
+                .orElse(null);
+        System.out.println("Current Azure IP: " + ipInAzure);
+
+        boolean firstPass = true;
+        while (firstPass || keepAlive) {
+            firstPass = false;
+
+            if (ip == null || keepAlive) {
+                ip = InternetTools.getPublicIp();
+            }
+            System.out.println("IP: " + ip);
+
+            if (!StringTools.safeEquals(ip, ipInAzure)) {
+                System.out.println("Updating the DNS Zone entry");
+                cloudAzureService.dnsSetEntry(dnsZone, hostname, "A", List.of(new RawDnsEntry()
+                                .setName(hostname)
+                                .setType("A")
+                                .setTtl(300)
+                                .setDetails(ip)
+                        )
+                );
+            }
+
+            if (keepAlive) {
+                ThreadTools.sleep(2 * 60 * 1000);
+            }
+        }
+    }
 
     @ShellMethod("List the DNS Zones")
     public void azureDnsZoneList() {
