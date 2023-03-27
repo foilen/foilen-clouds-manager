@@ -12,11 +12,21 @@ package com.foilen.clouds.manager.services.model;
 import com.foilen.smalltools.tools.AbstractBasics;
 
 import java.util.List;
+import java.util.Set;
 
 public class DnsConfig extends AbstractBasics {
 
     private boolean startEmpty = true;
+    private Set<String> startWithDomains;
     private List<DnsEntryConfig> configs;
+
+    public Set<String> getStartWithDomains() {
+        return startWithDomains;
+    }
+
+    public void setStartWithDomains(Set<String> startWithDomains) {
+        this.startWithDomains = startWithDomains;
+    }
 
     public List<DnsEntryConfig> getConfigs() {
         return configs;

@@ -140,7 +140,17 @@ public class CloudAzureService extends AbstractBasics {
     protected List<RawDnsEntry> computeDnsEntries(ManageContext context, String domainName, List<RawDnsEntry> currentRawDnsEntries, DnsConfig desiredDnsConfig) {
         // Copy all the current entries if desired
         Map<String, Set<RawDnsEntry>> desiredEntriesByNameType = new HashMap<>();
-        if (!desiredDnsConfig.isStartEmpty()) {
+        if (desiredDnsConfig.isStartEmpty()) {
+            if (desiredDnsConfig.getStartWithDomains() != null) {
+                currentRawDnsEntries.stream()
+                        .filter(it -> desiredDnsConfig.getStartWithDomains().contains(it.getName()))
+                        .forEach(it -> {
+                            String nameType = it.getName() + "|" + it.getType();
+                            CollectionsTools.getOrCreateEmptyHashSet(desiredEntriesByNameType, nameType, RawDnsEntry.class)
+                                    .add(it);
+                        });
+            }
+        } else {
             currentRawDnsEntries.forEach(it -> {
                 String nameType = it.getName() + "|" + it.getType();
                 CollectionsTools.getOrCreateEmptyHashSet(desiredEntriesByNameType, nameType, RawDnsEntry.class)
