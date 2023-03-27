@@ -79,6 +79,7 @@ public class AzureCommands {
                                 .setDetails(ip)
                         )
                 );
+                ipInAzure = ip;
             }
 
             if (keepAlive) {
