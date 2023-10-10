@@ -11,6 +11,7 @@ package com.foilen.clouds.manager.services.model;
 
 public enum CloudProvider {
 
-    AZURE, //
+    AZURE,
+    IN_MEMORY,
 
 }

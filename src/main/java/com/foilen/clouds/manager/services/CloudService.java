@@ -25,9 +25,15 @@ public class CloudService extends AbstractBasics {
 
     @Autowired
     private CloudAzureService cloudAzureService;
+    @Autowired
+    private CloudInMemoryService cloudInMemoryService;
 
     private String azureKeyFullName(String namespace, String name) {
         return namespace + "--" + name;
+    }
+
+    private String inMemoryKeyFullName(String namespace, String name) {
+        return namespace + "|" + name;
     }
 
     public List<RawDnsEntry> dnsListEntries(DnsZone dnsZone) {
@@ -68,6 +74,8 @@ public class CloudService extends AbstractBasics {
         switch (secretStore.getProvider()) {
             case AZURE:
                 return cloudAzureService.keyVaultSecretGetAsText((AzureKeyVault) secretStore, azureKeyFullName(namespace, name));
+            case IN_MEMORY:
+                return cloudInMemoryService.keyVaultSecretGetAsText((InMemorySecretStore) secretStore, inMemoryKeyFullName(namespace, name));
         }
 
         throw new CliException("Unknown provider");
@@ -78,6 +86,9 @@ public class CloudService extends AbstractBasics {
         switch (secretStore.getProvider()) {
             case AZURE:
                 cloudAzureService.keyVaultSecretSetAsTextOrFail((AzureKeyVault) secretStore, azureKeyFullName(namespace, name), value);
+                return;
+            case IN_MEMORY:
+                cloudInMemoryService.keyVaultSecretSetAsTextOrFail((InMemorySecretStore) secretStore, inMemoryKeyFullName(namespace, name), value);
                 return;
         }
 
