@@ -7,12 +7,18 @@
     http://opensource.org/licenses/MIT
 
  */
-package com.foilen.clouds.manager.services.model;
+package com.foilen.clouds.manager.digitaloceanclient.model;
 
-public enum CloudProvider {
+public enum DigitalOceanDomainRecordType {
 
-    AZURE,
-    DIGITAL_OCEAN,
-    IN_MEMORY,
+    A,
+    AAAA,
+    CAA,
+    CNAME,
+    MX,
+    NS,
+    SOA,
+    SRV,
+    TXT,
 
 }

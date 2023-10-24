@@ -27,6 +27,8 @@ public class ManageConfiguration {
     private List<AzureStorageAccount> azureStorageAccounts = new ArrayList<>();
     private List<AzureWebAppManageConfiguration> azureWebapps = new ArrayList<>();
 
+    private List<DigitalOceanDnsZoneManageConfiguration> digitalOceanDnsZones = new ArrayList<>();
+
     public List<AzureResourceGroup> getAzureResourceGroups() {
         return azureResourceGroups;
     }
@@ -82,4 +84,13 @@ public class ManageConfiguration {
     public List<AzureWebAppManageConfiguration> getAzureWebapps() {
         return azureWebapps;
     }
+
+    public List<DigitalOceanDnsZoneManageConfiguration> getDigitalOceanDnsZones() {
+        return digitalOceanDnsZones;
+    }
+
+    public void setDigitalOceanDnsZones(List<DigitalOceanDnsZoneManageConfiguration> digitalOceanDnsZones) {
+        this.digitalOceanDnsZones = digitalOceanDnsZones;
+    }
+
 }

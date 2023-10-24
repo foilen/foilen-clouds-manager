@@ -9,7 +9,6 @@
  */
 package com.foilen.clouds.manager.services;
 
-import com.azure.core.credential.AccessToken;
 import com.azure.core.credential.AzureNamedKeyCredential;
 import com.azure.core.credential.TokenCredential;
 import com.azure.core.credential.TokenRequestContext;
@@ -87,7 +86,6 @@ import org.xbill.DNS.ARecord;
 import org.xbill.DNS.Lookup;
 import org.xbill.DNS.TextParseException;
 import org.xbill.DNS.Type;
-import reactor.core.publisher.Mono;
 
 import java.io.File;
 import java.io.IOException;
@@ -113,6 +111,8 @@ public class CloudAzureService extends AbstractBasics {
     private AzureCustomClient azureCustomClient;
 
     private final Cache<String, String> storageAccountKeyCache = CacheBuilder.newBuilder().expireAfterWrite(1, TimeUnit.HOURS).build();
+
+    private boolean disabled = SystemTools.getPropertyOrEnvironment("DISABLE_AZURE", "false").toLowerCase().equals("true");
 
     private static String storageAccountKeyCacheKey(String resourceGroupName, String storageAccountName) {
         return resourceGroupName + "|" + storageAccountName;
@@ -956,6 +956,10 @@ public class CloudAzureService extends AbstractBasics {
 
     private void init() {
 
+        if (disabled) {
+            throw new DisabledException("Azure is disabled");
+        }
+
         if (profile == null) {
             logger.info("Prepare profile");
 
@@ -990,21 +994,25 @@ public class CloudAzureService extends AbstractBasics {
                         .build();
             }
 
-            tokenCredential = new TokenCredential() {
-                @Override
-                public Mono<AccessToken> getToken(TokenRequestContext request) {
-                    logger.info("Get token for Scopes {}, tenant id {}, claims {}", request.getScopes(), request.getTenantId(), request.getClaims());
-                    return wrappedTokenCredential.getToken(request);
-                }
+            tokenCredential = request -> {
+                logger.info("Get token for Scopes {}, tenant id {}, claims {}", request.getScopes(), request.getTenantId(), request.getClaims());
+                return wrappedTokenCredential.getToken(request);
             };
         }
 
         if (azureResourceManager == null) {
             logger.info("Prepare resource manager");
-            azureResourceManager = AzureResourceManager.configure() //
-                    .withLogLevel(HttpLogDetailLevel.BASIC) //
-                    .authenticate(tokenCredential, profile) //
-                    .withDefaultSubscription();
+            try {
+                azureResourceManager = AzureResourceManager.configure() //
+                        .withLogLevel(HttpLogDetailLevel.BASIC) //
+                        .authenticate(tokenCredential, profile) //
+                        .withDefaultSubscription();
+            } catch (Exception e) {
+                logger.error("Could not authenticate", e);
+                disabled = true;
+                throw new DisabledException("Azure is disabled");
+            }
+
         }
 
     }

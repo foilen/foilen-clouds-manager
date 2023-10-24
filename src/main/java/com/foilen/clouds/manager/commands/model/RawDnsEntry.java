@@ -14,6 +14,7 @@ import com.google.common.collect.ComparisonChain;
 
 public class RawDnsEntry extends AbstractBasics implements Comparable<RawDnsEntry> {
 
+    private String _id;
     private String name;
     private String type;
     private String details;
@@ -25,6 +26,15 @@ public class RawDnsEntry extends AbstractBasics implements Comparable<RawDnsEntr
     private long ttl = 60 * 60 * 24 * 2; // 2 Days
 
     public RawDnsEntry() {
+    }
+
+    public String get_id() {
+        return _id;
+    }
+
+    public RawDnsEntry set_id(String _id) {
+        this._id = _id;
+        return this;
     }
 
     @Override
@@ -106,7 +116,8 @@ public class RawDnsEntry extends AbstractBasics implements Comparable<RawDnsEntr
     @Override
     public String toString() {
         return "RawDnsEntry{" +
-                "name='" + name + '\'' +
+                "_id='" + _id + '\'' +
+                ", name='" + name + '\'' +
                 ", type='" + type + '\'' +
                 ", details='" + details + '\'' +
                 ", ttl=" + ttl +

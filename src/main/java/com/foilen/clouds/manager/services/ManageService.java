@@ -27,6 +27,8 @@ public class ManageService extends AbstractBasics {
 
     @Autowired
     private CloudAzureService cloudAzureService;
+    @Autowired
+    private CloudDigitalOceanService cloudDigitalOceanService;
 
     public void manage(String file) {
 
@@ -57,6 +59,7 @@ public class ManageService extends AbstractBasics {
             config.getAzureDnsZones().forEach(it -> cloudAzureService.dnsZoneManage(currentContext, config, it));
             config.getAzureStorageAccounts().forEach(it -> cloudAzureService.storageAccountManage(currentContext, config, it));
             config.getAzureWebapps().forEach(it -> cloudAzureService.webappManage(currentContext, config, it));
+            config.getDigitalOceanDnsZones().forEach(it -> cloudDigitalOceanService.dnsZoneManage(currentContext, it));
 
             // Retry logic
             if (!currentContext.getNeedsNextStageHash().isEmpty()) {
@@ -96,50 +99,76 @@ public class ManageService extends AbstractBasics {
     public void export(String file) {
         ManageConfiguration config = new ManageConfiguration();
 
-        logger.info("Getting resource groups");
-        config.setAzureResourceGroups(cloudAzureService.resourceGroupFindAll());
+        try {
+            logger.info("Getting resource groups");
+            config.setAzureResourceGroups(cloudAzureService.resourceGroupFindAll());
 
-        logger.info("Getting key vaults");
-        config.setAzureKeyVaults(cloudAzureService.keyVaultFindAll());
+            logger.info("Getting key vaults");
+            config.setAzureKeyVaults(cloudAzureService.keyVaultFindAll());
 
-        logger.info("Getting application service plans");
-        config.setAzureApplicationServicePlans(cloudAzureService.applicationServicePlansFindAll());
+            logger.info("Getting application service plans");
+            config.setAzureApplicationServicePlans(cloudAzureService.applicationServicePlansFindAll());
 
-        logger.info("Getting mariadbs");
-        config.setAzureMariadbs(cloudAzureService.mariadbList().stream()
-                .map(it -> new AzureMariadbManageConfiguration()
-                                .setResource(it)
-                        // TODO MariaDB - Export Config
-                )
-                .collect(Collectors.toList())
-        );
+            logger.info("Getting mariadbs");
+            config.setAzureMariadbs(cloudAzureService.mariadbList().stream()
+                    .map(it -> new AzureMariadbManageConfiguration()
+                                    .setResource(it)
+                            // TODO MariaDB - Export Config
+                    )
+                    .collect(Collectors.toList())
+            );
 
-        logger.info("Getting Dns Zones");
-        config.setAzureDnsZones(cloudAzureService.dnsZoneList().stream()
-                .map(it -> new AzureDnsZoneManageConfiguration()
-                        .setResource(it)
-                        .setConfig(new DnsConfig()
-                                .setStartEmpty(true)
-                                .setConfigs(Collections.singletonList(new DnsEntryConfig()
-                                                .setConflictResolution(ConflictResolution.APPEND)
-                                                .setRawDnsEntries(cloudAzureService.dnsZoneEntryListIgnoreNs(it))
-                                        )
-                                )
-                        )
-                )
-                .collect(Collectors.toList())
-        );
+            logger.info("Getting Azure Dns Zones");
+            config.setAzureDnsZones(cloudAzureService.dnsZoneList().stream()
+                    .map(it -> new AzureDnsZoneManageConfiguration()
+                            .setResource(it)
+                            .setConfig(new DnsConfig()
+                                    .setStartEmpty(true)
+                                    .setConfigs(Collections.singletonList(new DnsEntryConfig()
+                                                    .setConflictResolution(ConflictResolution.APPEND)
+                                                    .setRawDnsEntries(cloudAzureService.dnsZoneEntryListIgnoreNs(it))
+                                            )
+                                    )
+                            )
+                    )
+                    .collect(Collectors.toList())
+            );
 
-        logger.info("Getting storage accounts");
-        config.setAzureStorageAccounts(cloudAzureService.storageAccountList());
+            logger.info("Getting storage accounts");
+            config.setAzureStorageAccounts(cloudAzureService.storageAccountList());
 
-        logger.info("Getting web applications");
-        config.setAzureWebapps(cloudAzureService.webappList().stream()
-                .map(it -> new AzureWebAppManageConfiguration()
-                        .setResource(it)
-                )
-                .collect(Collectors.toList())
-        );
+            logger.info("Getting web applications");
+            config.setAzureWebapps(cloudAzureService.webappList().stream()
+                    .map(it -> new AzureWebAppManageConfiguration()
+                            .setResource(it)
+                    )
+                    .collect(Collectors.toList())
+            );
+        } catch (DisabledException e) {
+            logger.info("Skipping Azure resources");
+        }
+
+        try {
+            logger.info("Getting DigitalOcean Dns Zones");
+            config.setDigitalOceanDnsZones(cloudDigitalOceanService.domainList().stream()
+                    .map(it -> new DigitalOceanDnsZoneManageConfiguration()
+                            .setResource(it)
+                            .setConfig(new DnsConfig()
+                                    .setStartEmpty(true)
+                                    .setConfigs(Collections.singletonList(new DnsEntryConfig()
+                                                    .setConflictResolution(ConflictResolution.APPEND)
+                                                    .setRawDnsEntries(cloudDigitalOceanService.dnsZoneEntryListIgnoreNs(it).stream()
+                                                            .peek(entry -> entry.set_id(null))
+                                                            .collect(Collectors.toList()))
+                                            )
+                                    )
+                            )
+                    )
+                    .collect(Collectors.toList())
+            );
+        } catch (DisabledException e) {
+            logger.info("Skipping DigitalOcean resources");
+        }
 
         logger.info("Export to {}", file);
         var json = JsonTools.prettyPrintWithoutNulls(cleanup(config));
