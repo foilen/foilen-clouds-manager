@@ -69,6 +69,12 @@ public class DigitalOceanCustomClient extends AbstractBasics {
         digitalOceanDomainRecord.setWeight(entry.getWeight());
         digitalOceanDomainRecord.setPort(entry.getPort());
         digitalOceanDomainRecord.setTtl(entry.getTtl());
+        switch (digitalOceanDomainRecord.getType()) {
+            case CNAME:
+            case MX:
+                digitalOceanDomainRecord.setData(digitalOceanDomainRecord.getData() + ".");
+                break;
+        }
         return post(DigitalOceanDomainRecordResponse.class, "https://api.digitalocean.com/v2/domains/{domainName}/records", uriVariable, digitalOceanDomainRecord);
     }
 

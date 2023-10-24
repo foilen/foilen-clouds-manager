@@ -249,7 +249,7 @@ public class CloudDigitalOceanService extends AbstractBasics {
                             .set_id(record.getId())
                             .setName(toFullDomainName(record.getName(), domainName))
                             .setType(record.getType().name())
-                            .setDetails(record.getData())
+                            .setDetails(toCname(record.getData(), domainName))
                             .setTtl(record.getTtl())
                     );
                     break;
@@ -258,7 +258,7 @@ public class CloudDigitalOceanService extends AbstractBasics {
                             .set_id(record.getId())
                             .setName(toFullDomainName(record.getName(), domainName))
                             .setType(record.getType().name())
-                            .setDetails(record.getData())
+                            .setDetails(toCname(record.getData(), domainName))
                             .setPriority(record.getPriority())
                             .setTtl(record.getTtl())
                     );
@@ -298,6 +298,14 @@ public class CloudDigitalOceanService extends AbstractBasics {
 
         Collections.sort(rawDnsEntries);
         return rawDnsEntries;
+    }
+
+    private String toCname(String name, String domainName) {
+        if (StringTools.safeEquals("@", name)) {
+            return domainName;
+        } else {
+            return name;
+        }
     }
 
     private String toFullDomainName(String name, String domainName) {
