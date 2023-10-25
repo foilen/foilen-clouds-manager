@@ -12,6 +12,7 @@ package com.foilen.clouds.manager.services;
 import com.foilen.clouds.manager.CliException;
 import com.foilen.clouds.manager.commands.model.RawDnsEntry;
 import com.foilen.clouds.manager.digitaloceanclient.DigitalOceanCustomClient;
+import com.foilen.clouds.manager.digitaloceanclient.model.DigitalOceanDomainRecord;
 import com.foilen.clouds.manager.services.model.ConflictResolution;
 import com.foilen.clouds.manager.services.model.DigitalOceanDnsZone;
 import com.foilen.clouds.manager.services.model.DnsConfig;
@@ -222,82 +223,107 @@ public class CloudDigitalOceanService extends AbstractBasics {
             throw new CliException("Could not get the domain records", records);
         }
 
-        List<RawDnsEntry> rawDnsEntries = new ArrayList<>();
-        records.getDomainRecords().forEach(record -> {
+        return records.getDomainRecords().stream()
+                .map(record -> toRawDnsEntry(record, domainName))
+                .filter(Objects::nonNull)
+                .sorted()
+                .collect(Collectors.toList());
+    }
 
-            switch (record.getType()) {
-                case A:
-                    rawDnsEntries.add(new RawDnsEntry()
-                            .set_id(record.getId())
-                            .setName(toFullDomainName(record.getName(), domainName))
-                            .setType(record.getType().name())
-                            .setDetails(record.getData())
-                            .setTtl(record.getTtl())
-                    );
-                    break;
-                case AAAA:
-                    rawDnsEntries.add(new RawDnsEntry()
-                            .set_id(record.getId())
-                            .setName(toFullDomainName(record.getName(), domainName))
-                            .setType(record.getType().name())
-                            .setDetails(record.getData())
-                            .setTtl(record.getTtl())
-                    );
-                    break;
-                case CNAME:
-                    rawDnsEntries.add(new RawDnsEntry()
-                            .set_id(record.getId())
-                            .setName(toFullDomainName(record.getName(), domainName))
-                            .setType(record.getType().name())
-                            .setDetails(toCname(record.getData(), domainName))
-                            .setTtl(record.getTtl())
-                    );
-                    break;
-                case MX:
-                    rawDnsEntries.add(new RawDnsEntry()
-                            .set_id(record.getId())
-                            .setName(toFullDomainName(record.getName(), domainName))
-                            .setType(record.getType().name())
-                            .setDetails(toCname(record.getData(), domainName))
-                            .setPriority(record.getPriority())
-                            .setTtl(record.getTtl())
-                    );
-                    break;
-                case NS:
-                    rawDnsEntries.add(new RawDnsEntry()
-                            .set_id(record.getId())
-                            .setName(toFullDomainName(record.getName(), domainName))
-                            .setType(record.getType().name())
-                            .setDetails(record.getData())
-                            .setTtl(record.getTtl())
-                    );
-                    break;
-                case SRV:
-                    rawDnsEntries.add(new RawDnsEntry()
-                            .set_id(record.getId())
-                            .setName(toFullDomainName(record.getName(), domainName))
-                            .setType(record.getType().name())
-                            .setDetails(record.getData())
-                            .setPort(record.getPort())
-                            .setPriority(record.getPriority())
-                            .setWeight(record.getWeight())
-                            .setTtl(record.getTtl())
-                    );
-                    break;
-                case TXT:
-                    rawDnsEntries.add(new RawDnsEntry()
-                            .set_id(record.getId())
-                            .setName(toFullDomainName(record.getName(), domainName))
-                            .setType(record.getType().name())
-                            .setDetails(record.getData())
-                            .setTtl(record.getTtl())
-                    );
-                    break;
+    private RawDnsEntry toRawDnsEntry(DigitalOceanDomainRecord record, String domainName) {
+        RawDnsEntry rawDnsEntry = null;
+
+        switch (record.getType()) {
+            case A:
+                rawDnsEntry = new RawDnsEntry()
+                        .set_id(record.getId())
+                        .setName(toFullDomainName(record.getName(), domainName))
+                        .setType(record.getType().name())
+                        .setDetails(record.getData())
+                        .setTtl(record.getTtl());
+                break;
+            case AAAA:
+                rawDnsEntry = new RawDnsEntry()
+                        .set_id(record.getId())
+                        .setName(toFullDomainName(record.getName(), domainName))
+                        .setType(record.getType().name())
+                        .setDetails(record.getData())
+                        .setTtl(record.getTtl());
+                break;
+            case CNAME:
+                rawDnsEntry = new RawDnsEntry()
+                        .set_id(record.getId())
+                        .setName(toFullDomainName(record.getName(), domainName))
+                        .setType(record.getType().name())
+                        .setDetails(toCname(record.getData(), domainName))
+                        .setTtl(record.getTtl());
+                break;
+            case MX:
+                rawDnsEntry = new RawDnsEntry()
+                        .set_id(record.getId())
+                        .setName(toFullDomainName(record.getName(), domainName))
+                        .setType(record.getType().name())
+                        .setDetails(toCname(record.getData(), domainName))
+                        .setPriority(record.getPriority())
+                        .setTtl(record.getTtl());
+                break;
+            case NS:
+                rawDnsEntry = new RawDnsEntry()
+                        .set_id(record.getId())
+                        .setName(toFullDomainName(record.getName(), domainName))
+                        .setType(record.getType().name())
+                        .setDetails(record.getData())
+                        .setTtl(record.getTtl());
+                break;
+            case SRV:
+                rawDnsEntry = new RawDnsEntry()
+                        .set_id(record.getId())
+                        .setName(toFullDomainName(record.getName(), domainName))
+                        .setType(record.getType().name())
+                        .setDetails(record.getData())
+                        .setPort(record.getPort())
+                        .setPriority(record.getPriority())
+                        .setWeight(record.getWeight())
+                        .setTtl(record.getTtl());
+                break;
+            case TXT:
+                rawDnsEntry = new RawDnsEntry()
+                        .set_id(record.getId())
+                        .setName(toFullDomainName(record.getName(), domainName))
+                        .setType(record.getType().name())
+                        .setDetails(record.getData())
+                        .setTtl(record.getTtl());
+                break;
+        }
+        return rawDnsEntry;
+    }
+
+    public List<RawDnsEntry> dnsUpdateEntries(DigitalOceanDnsZone dnsZone, List<RawDnsEntry> toDeleteEntries, List<RawDnsEntry> toAddEntries) {
+
+        String domainName = dnsZone.getName();
+
+        // Delete
+        for (RawDnsEntry toDeleteEntry : toDeleteEntries) {
+            logger.info("Delete: {}", toDeleteEntry);
+            var result = digitalOceanCustomClient.domainRecordDelete(domainName, toDeleteEntry.get_id());
+            if (!result.isSuccess()) {
+                throw new CliException("Could not delete the domain record", result);
             }
-        });
+        }
 
-        Collections.sort(rawDnsEntries);
-        return rawDnsEntries;
+        // Add
+        List<RawDnsEntry> newDnsEntries = new ArrayList<>();
+        for (RawDnsEntry toAddEntry : toAddEntries) {
+            logger.info("Add: {}", toAddEntry);
+            var result = digitalOceanCustomClient.domainRecordAdd(domainName, toAddEntry);
+            if (!result.isSuccess()) {
+                throw new CliException("Could not add the domain record", result);
+            }
+            newDnsEntries.add(toRawDnsEntry(result.getDomainRecord(), domainName));
+        }
+
+        // Get the new list
+        return newDnsEntries;
     }
 
     private String toCname(String name, String domainName) {
@@ -315,5 +341,4 @@ public class CloudDigitalOceanService extends AbstractBasics {
             return name + "." + domainName;
         }
     }
-
 }
