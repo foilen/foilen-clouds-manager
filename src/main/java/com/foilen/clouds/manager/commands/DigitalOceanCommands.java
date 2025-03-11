@@ -62,20 +62,24 @@ public class DigitalOceanCommands {
             }
             System.out.println("IP: " + ip);
 
-            if (!StringTools.safeEquals(ip, previousDnsEntry.getDetails())) {
-                System.out.println("Updating the DNS Zone entry");
-                List<RawDnsEntry> toDeleteEntries = new ArrayList<>();
-                if (previousDnsEntry.get_id() != null) {
-                    toDeleteEntries.add(previousDnsEntry);
+            if (ip == null) {
+                System.out.println("IP is null which is not normal. Not updating the DNS Zone entry");
+            } else {
+                if (!StringTools.safeEquals(ip, previousDnsEntry.getDetails())) {
+                    System.out.println("Updating the DNS Zone entry");
+                    List<RawDnsEntry> toDeleteEntries = new ArrayList<>();
+                    if (previousDnsEntry.get_id() != null) {
+                        toDeleteEntries.add(previousDnsEntry);
+                    }
+                    List<RawDnsEntry> newDnsEntries = cloudDigitalOceanService.dnsUpdateEntries(dnsZone, toDeleteEntries, List.of(new RawDnsEntry()
+                                    .setName(hostname)
+                                    .setType("A")
+                                    .setTtl(300)
+                                    .setDetails(ip)
+                            )
+                    );
+                    previousDnsEntry = newDnsEntries.get(0);
                 }
-                List<RawDnsEntry> newDnsEntries = cloudDigitalOceanService.dnsUpdateEntries(dnsZone, toDeleteEntries, List.of(new RawDnsEntry()
-                                .setName(hostname)
-                                .setType("A")
-                                .setTtl(300)
-                                .setDetails(ip)
-                        )
-                );
-                previousDnsEntry = newDnsEntries.get(0);
             }
 
             if (keepAlive) {
