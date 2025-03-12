@@ -54,12 +54,12 @@ public class AzureCommands {
             throw new CliException("Unknown DNS Zone");
         }
 
-        String ipInAzure = cloudAzureService.dnsZoneEntryList(dnsZone).stream() //
-                .filter(it -> it.getName().equals(hostname)) //
-                .map(RawDnsEntry::getDetails) //
-                .findFirst() //
+        String ipInAzure = cloudAzureService.dnsZoneEntryList(dnsZone).stream()
+                .filter(it -> it.getName().equals(hostname))
+                .map(RawDnsEntry::getDetails)
+                .findFirst()
                 .orElse(null);
-        System.out.println("Current Azure IP: " + ipInAzure);
+        System.out.println("Current IP in DNS Zone: " + ipInAzure);
 
         boolean firstPass = true;
         while (firstPass || keepAlive) {
@@ -70,16 +70,20 @@ public class AzureCommands {
             }
             System.out.println("IP: " + ip);
 
-            if (!StringTools.safeEquals(ip, ipInAzure)) {
-                System.out.println("Updating the DNS Zone entry");
-                cloudAzureService.dnsSetEntry(dnsZone, hostname, "A", List.of(new RawDnsEntry()
-                                .setName(hostname)
-                                .setType("A")
-                                .setTtl(300)
-                                .setDetails(ip)
-                        )
-                );
-                ipInAzure = ip;
+            if (ip == null) {
+                System.out.println("IP is null which is not normal. Not updating the DNS Zone entry");
+            } else {
+                if (!StringTools.safeEquals(ip, ipInAzure)) {
+                    System.out.println("Updating the DNS Zone entry");
+                    cloudAzureService.dnsSetEntry(dnsZone, hostname, "A", List.of(new RawDnsEntry()
+                                    .setName(hostname)
+                                    .setType("A")
+                                    .setTtl(300)
+                                    .setDetails(ip)
+                            )
+                    );
+                    ipInAzure = ip;
+                }
             }
 
             if (keepAlive) {
